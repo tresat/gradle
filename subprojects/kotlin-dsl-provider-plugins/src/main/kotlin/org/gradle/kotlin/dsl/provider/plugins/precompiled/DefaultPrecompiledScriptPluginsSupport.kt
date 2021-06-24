@@ -54,6 +54,7 @@ import org.gradle.tooling.model.kotlin.dsl.KotlinDslModelsParameters
 
 import java.io.File
 import java.util.function.Consumer
+import javax.inject.Inject
 
 
 /**
@@ -242,33 +243,29 @@ fun Project.enableScriptCompilationOf(
                 plugins = scriptPlugins
             }
 
-        fun applyKotlinCompilerArgs(resolverEnvironment: String) {
-            applyKotlinCompilerArgs(
-                listOf(
-                    "-script-templates", scriptTemplates,
-                    // Propagate implicit imports and other settings
-                    "-Xscript-resolver-environment=$resolverEnvironment"
-                )
-            )
-        }
-
         kotlinCompileTask {
             dependsOn(generatePrecompiledScriptPluginAccessors)
             inputs.files(compileClasspath).withNormalizer(ClasspathNormalizer::class.java)
             inputs.dir(accessorsMetadata).withPathSensitivity(PathSensitivity.RELATIVE)
             inputs.property("kotlinDslScriptTemplates", scriptTemplates)
 
-            val classPathFingerprinter = serviceOf<ClasspathFingerprinter>()
             val implicitImports = serviceOf<ImplicitImports>()
 
             doFirst {
+                val services = objects.newInstance<ResolverEnvironmentServices>()
                 val resolverEnvironment = resolverEnvironmentStringFor(
                     implicitImports,
-                    classPathFingerprinter,
+                    services.classpathFingerprinter,
                     compileClasspath,
                     accessorsMetadata.get().asFile
                 )
-                applyKotlinCompilerArgs(resolverEnvironment)
+                applyKotlinCompilerArgs(
+                    listOf(
+                        "-script-templates", scriptTemplates,
+                        // Propagate implicit imports and other settings
+                        "-Xscript-resolver-environment=$resolverEnvironment"
+                    )
+                )
             }
         }
 
@@ -279,7 +276,13 @@ fun Project.enableScriptCompilationOf(
                 metadataDir.set(accessorsMetadata)
                 classPathFiles.from(compileClasspath)
                 onConfigure { resolverEnvironment ->
-                    applyKotlinCompilerArgs(resolverEnvironment)
+                    applyKotlinCompilerArgs(
+                        listOf(
+                            "-script-templates", scriptTemplates,
+                            // Propagate implicit imports and other settings
+                            "-Xscript-resolver-environment=$resolverEnvironment"
+                        )
+                    )
                 }
             }
 
@@ -288,6 +291,13 @@ fun Project.enableScriptCompilationOf(
             )
         }
     }
+}
+
+
+private
+interface ResolverEnvironmentServices {
+    @get:Inject
+    val classpathFingerprinter: ClasspathFingerprinter
 }
 
 

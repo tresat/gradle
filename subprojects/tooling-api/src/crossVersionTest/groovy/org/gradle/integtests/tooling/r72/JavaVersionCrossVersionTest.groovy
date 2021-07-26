@@ -29,7 +29,7 @@ import spock.lang.Issue
 import spock.util.Exceptions
 
 @Issue('https://github.com/gradle/gradle/issues/9339')
-@TargetGradleVersion(">=7.2")
+@TargetGradleVersion(">=5.0")
 @ToolingApiVersion("current")
 class JavaVersionCrossVersionTest extends ToolingApiSpecification {
 

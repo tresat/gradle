@@ -59,8 +59,11 @@ class GradleRunnerSupportedBuildJvmIntegrationTest extends BaseGradleRunnerInteg
         buildFile << '''
             task myTask {
                 doLast {
-                    println "Running gradle version: ${gradle.gradleVersion}"
-                    throw new RuntimeException("Boom!")
+                    println "Running Gradle version: ${gradle.gradleVersion}"
+                    def e = new RuntimeException('@Root', new RuntimeException('@Cause1', new RuntimeException('@Cause2')))
+                    e.addSuppressed(new RuntimeException('@Suppressed1'))
+                    e.addSuppressed(new RuntimeException('@Suppressed2'))
+                    throw e
                 }
             }
         '''
@@ -73,14 +76,18 @@ class GradleRunnerSupportedBuildJvmIntegrationTest extends BaseGradleRunnerInteg
                 }
             }
             .forwardOutput()
-            .withArguments("myTask")
+            .withArguments("myTask", '--stacktrace')
 
         then:
-        build.buildAndFail().output.tap {
+        with(build.buildAndFail().output) {
             if (buildToolVersion != 'LATEST') {
-                contains("Running gradle version ${buildToolVersion}")
+                contains("Running Gradle version: ${buildToolVersion}")
             }
-            contains("Boom!")
+            contains("@Root")
+            contains("@Cause1")
+            contains("@Cause2")
+            contains("@Suppressed1")
+            contains("@Suppressed2")
         }
 
         where:

@@ -54,12 +54,17 @@ class GradleRunnerSupportedBuildJvmIntegrationTest extends BaseGradleRunnerInteg
     def "supports failing builds on older Java versions"() {
         given:
         testDirectory.file("gradle.properties")
-            .writeProperties("org.gradle.java.home": jdk.javaHome.absolutePath)
+            .writeProperties(
+                "org.gradle.java.home": jdk.javaHome.absolutePath,
+                "org.gradle.jvmargs": "-javaagent:/Users/lorinc/IdeaProjects/dotcom/test-distribution-instrumentation/build/libs/test-distribution-instrumentation-all.jar"
+            )
 
         buildFile << '''
             task myTask {
                 doLast {
-                    println "Running Gradle version: ${gradle.gradleVersion}"
+                    println "Java version: ${System.getProperty('java.version')}"
+                    println "Gradle version: ${gradle.gradleVersion}"
+                    println "Args: ${java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments()}"
                     def e = new RuntimeException('@Root', new RuntimeException('@Cause1', new RuntimeException('@Cause2')))
                     e.addSuppressed(new RuntimeException('@Suppressed1'))
                     e.addSuppressed(new RuntimeException('@Suppressed2'))
@@ -81,7 +86,7 @@ class GradleRunnerSupportedBuildJvmIntegrationTest extends BaseGradleRunnerInteg
         then:
         with(build.buildAndFail().output) {
             if (buildToolVersion != 'LATEST') {
-                contains("Running Gradle version: ${buildToolVersion}")
+                contains("Gradle version: ${buildToolVersion}")
             }
             contains("@Root")
             contains("@Cause1")
@@ -92,7 +97,7 @@ class GradleRunnerSupportedBuildJvmIntegrationTest extends BaseGradleRunnerInteg
 
         where:
         [buildToolVersion, jdk] << [
-            ['2.6', '2.7', '2.8', '2.9', '2.11', '2.12', '2.13', '2.14.1', '3.0', '3.1', '3.2.1', '3.3', '3.4.1', '3.5.1', '4.0.2', '4.1', '4.2.1', '4.3.1', '4.4.1', '4.5.1', '4.6', '4.7', '4.8.1', '4.9', '4.10.3', '5.0', '5.1.1', '5.2.1', '5.3.1', '5.4.1', '5.5.1', '5.6.4', '6.0.1', '6.1.1', '6.2.2', '6.3', '6.4.1', '6.5.1', '6.6.1', '6.7.1', '6.8.3', '6.9', '7.0.2', '7.1.1', 'LATEST'],
+            [/*'2.6', '2.7', '2.8', '2.9', '2.11', '2.12', '2.13', '2.14.1', '3.0', '3.1', '3.2.1', '3.3', '3.4.1', '3.5.1', '4.0.2', '4.1', '4.2.1', '4.3.1', '4.4.1', '4.5.1', '4.6', '4.7', '4.8.1', '4.9', '4.10.3', '5.0', '5.1.1', '5.2.1', '5.3.1', '5.4.1', '5.5.1', '5.6.4', '6.0.1', '6.1.1', '6.2.2', '6.3', '6.4.1', '6.5.1', '6.6.1', '6.7.1', '6.8.3', '6.9',*/ '7.0.2', '7.1.1', 'LATEST'],
             AvailableJavaHomes.getJdks('1.8')
         ].combinations()
     }

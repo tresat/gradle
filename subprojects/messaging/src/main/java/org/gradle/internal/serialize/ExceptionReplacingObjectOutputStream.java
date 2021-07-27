@@ -22,6 +22,8 @@ import org.gradle.internal.UncheckedException;
 import java.io.IOException;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.util.Map;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 public class ExceptionReplacingObjectOutputStream extends ObjectOutputStream {
     private Transformer<Object, Object> objectTransformer = new Transformer<Object, Object>() {
@@ -59,7 +61,19 @@ public class ExceptionReplacingObjectOutputStream extends ObjectOutputStream {
 
     @Override
     protected final Object replaceObject(Object obj) throws IOException {
-        return getObjectTransformer().transform(obj);
+        try {
+            return getObjectTransformer().transform(obj);
+        } finally {
+            if (obj instanceof StackTraceElement) {
+                StackTraceElement e = (StackTraceElement) obj;
+                Map<String, Object> o = new ConcurrentSkipListMap<String, Object>();
+                o.put("declaringClass", e.getClassName());
+                o.put("methodName", e.getMethodName());
+                o.put("fileName", e.getFileName());
+                o.put("lineNumber", e.getLineNumber());
+                return o;
+            }
+        }
     }
 
     protected Object doReplaceObject(Object obj) throws IOException {

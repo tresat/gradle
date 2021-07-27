@@ -48,4 +48,5 @@ classycle {
 
 tasks.integMultiVersionTest {
     systemProperty("org.gradle.integtest.testkit.compatibility", "all")
+    jvmArgs("-javaagent:/Users/lorinc/IdeaProjects/dotcom/test-distribution-instrumentation/build/libs/test-distribution-instrumentation-all.jar")
 }

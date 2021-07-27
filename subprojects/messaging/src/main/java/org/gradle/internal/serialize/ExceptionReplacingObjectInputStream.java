@@ -22,6 +22,8 @@ import org.gradle.internal.io.ClassLoaderObjectInputStream;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 public class ExceptionReplacingObjectInputStream extends ClassLoaderObjectInputStream {
     private Transformer<Object, Object> objectTransformer = new Transformer<Object, Object>() {
@@ -59,7 +61,24 @@ public class ExceptionReplacingObjectInputStream extends ClassLoaderObjectInputS
 
     @Override
     protected final Object resolveObject(Object obj) throws IOException {
-        return getObjectTransformer().transform(obj);
+        try {
+            return getObjectTransformer().transform(obj);
+        } finally {
+            if (obj instanceof ConcurrentSkipListMap) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> o = (Map<String, Object>) obj;
+
+                String declaringClass = (String) o.get("declaringClass");
+                String methodName = (String) o.get("methodName");
+                String fileName = (String) o.get("fileName");
+                Integer lineNumber = (Integer) o.get("lineNumber");
+                if (declaringClass != null && methodName != null && fileName != null && lineNumber != null) {
+                    return new StackTraceElement(declaringClass, methodName, fileName, lineNumber);
+                } else {
+                    System.out.println("ExceptionReplacingObjectInputStream.resolveObject " + obj);
+                }
+            }
+        }
     }
 
     protected Object doResolveObject(Object obj) throws IOException {

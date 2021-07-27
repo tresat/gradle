@@ -103,8 +103,10 @@ public class ProviderConnection {
     private final FileCollectionFactory fileCollectionFactory;
     private GradleVersion consumerVersion;
 
-    public ProviderConnection(ServiceRegistry sharedServices, BuildLayoutFactory buildLayoutFactory, DaemonClientFactory daemonClientFactory,
-                              BuildActionExecuter<BuildActionParameters, BuildRequestContext> embeddedExecutor, PayloadSerializer payloadSerializer, JvmVersionDetector jvmVersionDetector, FileCollectionFactory fileCollectionFactory) {
+    public ProviderConnection(
+        ServiceRegistry sharedServices, BuildLayoutFactory buildLayoutFactory, DaemonClientFactory daemonClientFactory,
+        BuildActionExecuter<BuildActionParameters, BuildRequestContext> embeddedExecutor, PayloadSerializer payloadSerializer, JvmVersionDetector jvmVersionDetector, FileCollectionFactory fileCollectionFactory
+    ) {
         this.buildLayoutFactory = buildLayoutFactory;
         this.daemonClientFactory = daemonClientFactory;
         this.embeddedExecutor = embeddedExecutor;
@@ -168,10 +170,12 @@ public class ProviderConnection {
         return run(action, cancellationToken, listenerConfig, listenerConfig.buildEventConsumer, providerParameters, params);
     }
 
-    public Object runPhasedAction(InternalPhasedAction clientPhasedAction,
-                                  PhasedActionResultListener resultListener,
-                                  BuildCancellationToken cancellationToken,
-                                  ProviderOperationParameters providerParameters) {
+    public Object runPhasedAction(
+        InternalPhasedAction clientPhasedAction,
+        PhasedActionResultListener resultListener,
+        BuildCancellationToken cancellationToken,
+        ProviderOperationParameters providerParameters
+    ) {
         List<String> tasks = providerParameters.getTasks();
         SerializedPayload serializedAction = payloadSerializer.serialize(clientPhasedAction);
         Parameters params = initParams(providerParameters);
@@ -210,11 +214,13 @@ public class ProviderConnection {
         ((ShutdownCoordinator) clientServices.find(ShutdownCoordinator.class)).stop();
     }
 
-    private Object run(BuildAction action, BuildCancellationToken cancellationToken,
-                       ProgressListenerConfiguration progressListenerConfiguration,
-                       BuildEventConsumer buildEventConsumer,
-                       ProviderOperationParameters providerParameters,
-                       Parameters parameters) {
+    private Object run(
+        BuildAction action, BuildCancellationToken cancellationToken,
+        ProgressListenerConfiguration progressListenerConfiguration,
+        BuildEventConsumer buildEventConsumer,
+        ProviderOperationParameters providerParameters,
+        Parameters parameters
+    ) {
         try {
             BuildActionExecuter<ConnectionOperationParameters, BuildRequestContext> executer = createExecuter(providerParameters, parameters);
             boolean interactive = providerParameters.getStandardInput() != null;
@@ -230,9 +236,9 @@ public class ProviderConnection {
     private void throwFailure(BuildActionResult result) {
         if (result.getException() != null) {
             throw map(result, result.getException());
-        }
-        if (result.getFailure() != null) {
-            throw map(result, (RuntimeException) payloadSerializer.deserialize(result.getFailure()));
+        } else if (result.getFailure() != null) {
+            Object deserialized = payloadSerializer.deserialize(result.getFailure());
+            throw map(result, (RuntimeException) deserialized);
         }
     }
 

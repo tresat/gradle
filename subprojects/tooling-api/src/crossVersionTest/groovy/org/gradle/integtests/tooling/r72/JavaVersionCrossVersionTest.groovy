@@ -45,43 +45,13 @@ class JavaVersionCrossVersionTest extends ToolingApiSpecification {
 
     @Requires(TestPrecondition.JDK11_OR_LATER)
     @IgnoreIf({ AvailableJavaHomes.jdk8 == null })
-    def "can deserialize failures with post-jigsaw client and pre-jigsaw daemon 2"() {
+    def "can deserialize failures with post-jigsaw client and pre-jigsaw daemon"() {
         projectDir.file("gradle.properties")
             .writeProperties("org.gradle.java.home": AvailableJavaHomes.jdk8.javaHome.absolutePath)
 
         when:
-        connector().tap {
-            if (buildToolVersion != 'LATEST') {
-                useGradleVersion(buildToolVersion)
-            }
-            connect().newBuild().forTasks('myTask').run()
-        }
-
-        then:
-        GradleConnectionException e = thrown()
-        with(Exceptions.getRootCause(e), RuntimeException) {
-            assert message == "Boom": e
-            stackTrace.find {
-                it.fileName.endsWith("build.gradle") && it.lineNumber == 4
-            }
-        }
-
-        where:
-        buildToolVersion << ['6.5', '7.0', 'LATEST']
-    }
-
-    @Requires(TestPrecondition.JDK8_OR_EARLIER)
-    @IgnoreIf({ AvailableJavaHomes.jdk11 == null })
-    def "can deserialize failures with pre-jigsaw client and post-jigsaw daemon"() {
-        projectDir.file("gradle.properties")
-            .writeProperties("org.gradle.java.home": AvailableJavaHomes.jdk11.javaHome.absolutePath)
-
-        when:
-        connector().tap {
-            if (buildToolVersion != 'LATEST') {
-                useGradleVersion(buildToolVersion)
-            }
-            connect().newBuild().forTasks('myTask').run()
+        toolingApi.withConnection { connection ->
+            connection.newBuild().forTasks('myTask').run()
         }
 
         then:
@@ -92,8 +62,26 @@ class JavaVersionCrossVersionTest extends ToolingApiSpecification {
                 it.fileName.endsWith("build.gradle") && it.lineNumber == 4
             }
         }
+    }
 
-        where:
-        buildToolVersion << ['6.5', '7.0', 'LATEST']
+    @Requires(TestPrecondition.JDK8_OR_EARLIER)
+    @IgnoreIf({ AvailableJavaHomes.jdk11 == null })
+    def "can deserialize failures with pre-jigsaw client and post-jigsaw daemon"() {
+        projectDir.file("gradle.properties")
+            .writeProperties("org.gradle.java.home": AvailableJavaHomes.jdk11.javaHome.absolutePath)
+
+        when:
+        toolingApi.withConnection { connection ->
+            connection.newBuild().forTasks('myTask').run()
+        }
+
+        then:
+        GradleConnectionException e = thrown()
+        with(Exceptions.getRootCause(e), RuntimeException) {
+            message == "Boom"
+            stackTrace.find {
+                it.fileName.endsWith("build.gradle") && it.lineNumber == 4
+            }
+        }
     }
 }

@@ -21,6 +21,7 @@ import org.gradle.integtests.fixtures.AvailableJavaHomes
 import org.gradle.internal.os.OperatingSystem
 import org.gradle.testkit.runner.fixtures.NoDebug
 import org.gradle.testkit.runner.fixtures.NonCrossVersion
+import org.gradle.testkit.runner.internal.DefaultGradleRunner
 import org.gradle.tooling.GradleConnectionException
 import org.gradle.util.GradleVersion
 import org.gradle.util.Requires
@@ -74,7 +75,8 @@ class GradleRunnerSupportedBuildJvmIntegrationTest extends BaseGradleRunnerInteg
         '''
 
         when:
-        def build = runner()
+        def build = (runner() as DefaultGradleRunner)
+            .withJvmArguments("-javaagent:/Users/lorinc/IdeaProjects/dotcom/test-distribution-instrumentation/build/libs/test-distribution-instrumentation-all.jar")
             .tap {
                 if (buildToolVersion != 'LATEST') {
                     withGradleVersion(buildToolVersion)

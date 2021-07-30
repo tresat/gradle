@@ -16,6 +16,7 @@
 
 package org.gradle.integtests.tooling.r22
 
+import com.google.common.collect.ImmutableList
 import org.gradle.integtests.fixtures.executer.GradleExecuter
 import org.gradle.integtests.tooling.fixture.ToolingApiSpecification
 import org.gradle.test.fixtures.server.http.BlockingHttpServer
@@ -36,6 +37,10 @@ class ClientShutdownCrossVersionSpec extends ToolingApiSpecification {
         toolingApi.close()
     }
 
+    private List<String> getBuildJvmArguments() {
+        return ImmutableList<String>.builder().add("-Djava.io.tmpdir=${buildContext.getTmpDir().absolutePath}").addAll(JVM_OPTS).build()
+    }
+
     def "can shutdown tooling API session when no operations have been executed"() {
         given:
         toolingApi.close()
@@ -49,7 +54,7 @@ class ClientShutdownCrossVersionSpec extends ToolingApiSpecification {
 
     def "cleans up idle daemons when tooling API session is shutdown"() {
         withConnection { connection ->
-            connection.model(GradleBuild).setJvmArguments(JVM_OPTS).get()
+            connection.model(GradleBuild).addJvmArguments(getBuildJvmArguments()).get()
         }
         toolingApi.daemons.daemon.assertIdle()
 
@@ -68,7 +73,7 @@ task slow { doLast { ${server.callFromBuild('sync')} } }
 """
         def sync = server.expectAndBlock('sync')
         withConnection { connection ->
-            connection.model(GradleBuild).setJvmArguments(JVM_OPTS).get()
+            connection.model(GradleBuild).addJvmArguments(getBuildJvmArguments()).get()
         }
         toolingApi.daemons.daemon.assertIdle()
 
@@ -93,7 +98,7 @@ task slow { doLast { ${server.callFromBuild('sync')} } }
     def "shutdown ignores daemons that are no longer running"() {
         given:
         withConnection { connection ->
-            connection.model(GradleBuild).setJvmArguments(JVM_OPTS).get()
+            connection.model(GradleBuild).addJvmArguments(getBuildJvmArguments()).get()
         }
         toolingApi.daemons.daemon.assertIdle()
         toolingApi.daemons.daemon.kill()
@@ -111,7 +116,7 @@ task slow { doLast { ${server.callFromBuild('sync')} } }
         toolingApi.daemons.daemon.assertIdle()
 
         withConnection { connection ->
-            connection.model(GradleBuild).setJvmArguments(JVM_OPTS).get()
+            connection.model(GradleBuild).addJvmArguments(getBuildJvmArguments()).get()
         }
         toolingApi.daemons.daemon.assertIdle()
 
@@ -123,6 +128,10 @@ task slow { doLast { ${server.callFromBuild('sync')} } }
     }
 
     private GradleExecuter daemonExecutor() {
-        targetDist.executer(temporaryFolder, getBuildContext()).withNoExplicitTmpDir().withDaemonBaseDir(toolingApi.daemonBaseDir).withBuildJvmOpts(JVM_OPTS).useOnlyRequestedJvmOpts().requireDaemon()
+        targetDist.executer(temporaryFolder, getBuildContext())
+            .withDaemonBaseDir(toolingApi.daemonBaseDir)
+            .withBuildJvmOpts(getBuildJvmArguments())
+            .useOnlyRequestedJvmOpts()
+            .requireDaemon()
     }
 }

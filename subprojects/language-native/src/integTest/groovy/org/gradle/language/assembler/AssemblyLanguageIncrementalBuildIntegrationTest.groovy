@@ -17,7 +17,7 @@
 package org.gradle.language.assembler
 
 
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.gradle.nativeplatform.fixtures.AbstractInstalledToolChainIntegrationSpec
 import org.gradle.nativeplatform.fixtures.RequiresInstalledToolChain
 import org.gradle.nativeplatform.fixtures.ToolChainRequirement
@@ -28,14 +28,15 @@ import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
 
 @RequiresInstalledToolChain(ToolChainRequirement.SUPPORTS_32_AND_64)
-@UnsupportedWithInstantExecution(because = "setup fails")
+@UnsupportedWithConfigurationCache(because = "setup fails")
 class AssemblyLanguageIncrementalBuildIntegrationTest extends AbstractInstalledToolChainIntegrationSpec {
 
-    HelloWorldApp app = new MixedLanguageHelloWorldApp(AbstractInstalledToolChainIntegrationSpec.toolChain)
+    HelloWorldApp app
     TestFile asmSourceFile
     def install
 
-    def "setup"() {
+    def setup() {
+        app = new MixedLanguageHelloWorldApp(toolChain)
         buildFile << """
             plugins {
                 id 'assembler'

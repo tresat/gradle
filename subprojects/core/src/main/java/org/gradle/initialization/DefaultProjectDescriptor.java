@@ -21,12 +21,13 @@ import org.gradle.api.initialization.ProjectDescriptor;
 import org.gradle.api.initialization.Settings;
 import org.gradle.api.internal.DocumentationRegistry;
 import org.gradle.api.internal.project.ProjectIdentifier;
+import org.gradle.internal.Cast;
 import org.gradle.internal.FileUtils;
 import org.gradle.internal.file.PathToFileResolver;
 import org.gradle.internal.scripts.DefaultScriptFileResolver;
 import org.gradle.internal.scripts.ScriptFileResolver;
-import org.gradle.util.NameValidator;
 import org.gradle.util.Path;
+import org.gradle.util.internal.NameValidator;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -37,15 +38,15 @@ public class DefaultProjectDescriptor implements ProjectDescriptor, ProjectIdent
     public static final String INVALID_NAME_IN_INCLUDE_HINT = "Set the 'rootProject.name' or adjust the 'include' statement (see "
         + new DocumentationRegistry().getDslRefForProperty(Settings.class, "include(java.lang.String[])") + " for more details).";
 
-    private static final String BUILD_SCRIPT_BASENAME = "build";
+    public static final String BUILD_SCRIPT_BASENAME = "build";
 
     private String name;
     private final PathToFileResolver fileResolver;
     private final ScriptFileResolver scriptFileResolver;
     private File dir;
     private File canonicalDir;
-    private DefaultProjectDescriptor parent;
-    private Set<ProjectDescriptor> children = new LinkedHashSet<ProjectDescriptor>();
+    private final DefaultProjectDescriptor parent;
+    private final Set<DefaultProjectDescriptor> children = new LinkedHashSet<>();
     private ProjectDescriptorRegistry projectDescriptorRegistry;
     private Path path;
     private String buildFileName;
@@ -129,6 +130,10 @@ public class DefaultProjectDescriptor implements ProjectDescriptor, ProjectIdent
 
     @Override
     public Set<ProjectDescriptor> getChildren() {
+        return Cast.uncheckedCast(children);
+    }
+
+    public Set<? extends DefaultProjectDescriptor> children() {
         return children;
     }
 

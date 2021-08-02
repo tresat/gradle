@@ -20,9 +20,11 @@ import java.io.File;
 
 public class SettingsLocation {
     private final File settingsDir;
+
+    @Nullable
     private final File settingsFile;
 
-    public SettingsLocation(File settingsDir, File settingsFile) {
+    public SettingsLocation(File settingsDir, @Nullable File settingsFile) {
         this.settingsDir = settingsDir;
         this.settingsFile = settingsFile;
     }
@@ -35,7 +37,7 @@ public class SettingsLocation {
     }
 
     /**
-     * Returns the settings file. May be null.
+     * Returns the settings file. May be null, which mean "no settings file" rather than "use default settings".
      */
     @Nullable
     public File getSettingsFile() {

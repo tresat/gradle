@@ -31,21 +31,20 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.OutputFile
 import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheOption
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.InstantExecutionRunner
 import org.gradle.integtests.fixtures.RequiredFeature
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
+import org.gradle.integtests.fixtures.configurationcache.ConfigurationCacheTest
 import org.gradle.internal.reflect.Instantiator
 import org.gradle.process.ExecOperations
-import org.junit.runner.RunWith
 import spock.lang.Unroll
 
 import javax.inject.Inject
 
-@RunWith(InstantExecutionRunner)
+@ConfigurationCacheTest
 class BuildServiceIntegrationTest extends AbstractIntegrationSpec {
     def "service is created once per build on first use and stopped at the end of the build"() {
         serviceImplementation()
-        buildFile << """
+        buildFile """
             abstract class Consumer extends DefaultTask {
                 @Internal
                 abstract Property<CountingService> getCounter()
@@ -191,7 +190,7 @@ class BuildServiceIntegrationTest extends AbstractIntegrationSpec {
     }
 
     @RequiredFeature(feature = ConfigurationCacheOption.PROPERTY_NAME, value = "false")
-    @UnsupportedWithInstantExecution
+    @UnsupportedWithConfigurationCache
     def "service can be used at configuration and execution time"() {
         serviceImplementation()
         buildFile << """
@@ -239,7 +238,7 @@ class BuildServiceIntegrationTest extends AbstractIntegrationSpec {
     }
 
     @RequiredFeature(feature = ConfigurationCacheOption.PROPERTY_NAME, value = "true")
-    def "service used at configuration and execution time can be used with instant execution"() {
+    def "service used at configuration and execution time can be used with configuration cache"() {
         serviceImplementation()
         buildFile << """
             def provider = gradle.sharedServices.registerIfAbsent("counter", CountingService) {

@@ -1,32 +1,23 @@
 import org.gradle.api.internal.FeaturePreviews
 
-/*
- * Copyright 2010 the original author or authors.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 pluginManagement {
+    includeBuild("build-logic-settings")
     repositories {
         gradlePluginPortal()
         maven { url = uri("https://repo.gradle.org/gradle/libs-releases") }
+        maven { url = uri("https://repo.gradle.org/gradle/enterprise-libs-release-candidates-local") }
     }
 }
 
 plugins {
-    id("com.gradle.enterprise").version("3.4")
-    id("com.gradle.enterprise.gradle-enterprise-conventions-plugin").version("0.7.1")
+    id("com.gradle.enterprise").version("3.6.3")
+    id("com.gradle.enterprise.gradle-enterprise-conventions-plugin").version("0.7.2")
+    id("gradlebuild.base.allprojects")
+    id("com.gradle.enterprise.test-distribution").version("2.1.1") // Sync with `build-logic/build-platform/build.gradle.kts`
 }
+
+includeBuild("build-logic-commons")
+includeBuild("build-logic")
 
 apply(from = "gradle/shared-with-buildSrc/mirrors.settings.gradle.kts")
 
@@ -46,7 +37,8 @@ include("distributions-native")
 include("distributions-full")
 
 // Gradle implementation projects
-include("instant-execution")
+include("configuration-cache")
+include("functional")
 include("api-metadata")
 include("base-services")
 include("base-services-groovy")
@@ -69,7 +61,6 @@ include("plugins")
 include("scala")
 include("ide")
 include("ide-native")
-include("ide-play")
 include("maven")
 include("code-quality")
 include("antlr")
@@ -79,7 +70,6 @@ include("tooling-api-builders")
 include("signing")
 include("ear")
 include("native")
-include("javascript")
 include("reporting")
 include("diagnostics")
 include("publish")
@@ -96,7 +86,6 @@ include("java-compiler-plugin")
 include("language-groovy")
 include("language-native")
 include("tooling-native")
-include("language-scala")
 include("plugin-use")
 include("plugin-development")
 include("model-core")
@@ -106,7 +95,6 @@ include("testing-base")
 include("testing-native")
 include("testing-jvm")
 include("testing-junit-platform")
-include("platform-play")
 include("test-kit")
 include("installation-beacon")
 include("composite-builds")
@@ -117,6 +105,7 @@ include("build-cache")
 include("core-api")
 include("version-control")
 include("file-collections")
+include("file-temp")
 include("files")
 include("hashing")
 include("snapshots")
@@ -135,6 +124,7 @@ include("security")
 include("normalization-java")
 include("enterprise")
 include("build-operations")
+include("problems")
 
 // Plugin portal projects
 include("kotlin-dsl-plugins")
@@ -155,33 +145,12 @@ include("soak")
 include("smoke-test")
 include("performance")
 include("build-scan-performance")
-include("instant-execution-report")
-
-val upperCaseLetters = "\\p{Upper}".toRegex()
+include("configuration-cache-report")
 
 rootProject.name = "gradle"
 
-// List of sub-projects that have a Groovy DSL build script.
-// The intent is for this list to diminish until it disappears.
-val groovyBuildScriptProjects = hashSetOf(
-    "docs"
-)
-
-fun buildFileNameFor(projectDirName: String) =
-    "$projectDirName${buildFileExtensionFor(projectDirName)}"
-
-fun buildFileExtensionFor(projectDirName: String) =
-    if (projectDirName in groovyBuildScriptProjects) ".gradle" else ".gradle.kts"
-
 for (project in rootProject.children) {
     project.projectDir = file("subprojects/${project.name}")
-    project.buildFileName = buildFileNameFor(project.name)
-    require(project.projectDir.isDirectory) {
-        "Project directory ${project.projectDir} for project ${project.name} does not exist."
-    }
-    require(project.buildFile.isFile) {
-        "Build file ${project.buildFile} for project ${project.name} does not exist."
-    }
 }
 
 FeaturePreviews.Feature.values().forEach { feature ->

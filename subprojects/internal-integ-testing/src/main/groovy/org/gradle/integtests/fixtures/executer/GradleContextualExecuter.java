@@ -39,8 +39,7 @@ public class GradleContextualExecuter extends AbstractDelegatingGradleExecuter {
         forking(true),
         noDaemon(true),
         parallel(true, true),
-        instant(true),
-        watchFs(true);
+        configCache(true);
 
         final public boolean forks;
         final public boolean executeParallel;
@@ -67,10 +66,6 @@ public class GradleContextualExecuter extends AbstractDelegatingGradleExecuter {
         return getSystemPropertyExecuter() == Executer.noDaemon;
     }
 
-    public static boolean isWatchFs() {
-        return getSystemPropertyExecuter() == Executer.watchFs;
-    }
-
     public static boolean isDaemon() {
         return !(isNoDaemon() || isEmbedded());
     }
@@ -83,12 +78,12 @@ public class GradleContextualExecuter extends AbstractDelegatingGradleExecuter {
         return getSystemPropertyExecuter().executeParallel;
     }
 
-    public static boolean isNotInstant() {
-        return !isInstant();
+    public static boolean isNotConfigCache() {
+        return !isConfigCache();
     }
 
-    public static boolean isInstant() {
-        return getSystemPropertyExecuter() == Executer.instant;
+    public static boolean isConfigCache() {
+        return getSystemPropertyExecuter() == Executer.configCache;
     }
 
     private GradleExecuter gradleExecuter;
@@ -137,10 +132,8 @@ public class GradleContextualExecuter extends AbstractDelegatingGradleExecuter {
                 return new ParallelForkingGradleExecuter(getDistribution(), getTestDirectoryProvider(), gradleVersion, buildContext);
             case forking:
                 return new DaemonGradleExecuter(getDistribution(), getTestDirectoryProvider(), gradleVersion, buildContext);
-            case instant:
-                return new InstantExecutionGradleExecuter(getDistribution(), getTestDirectoryProvider(), gradleVersion, buildContext);
-            case watchFs:
-                return new FileSystemWatchingGradleExecuter(getDistribution(), getTestDirectoryProvider(), gradleVersion, buildContext);
+            case configCache:
+                return new ConfigurationCacheGradleExecuter(getDistribution(), getTestDirectoryProvider(), gradleVersion, buildContext);
             default:
                 throw new RuntimeException("Not a supported executer type: " + executerType);
         }

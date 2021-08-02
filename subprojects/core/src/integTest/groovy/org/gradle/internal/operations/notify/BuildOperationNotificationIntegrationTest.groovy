@@ -32,8 +32,8 @@ import org.gradle.initialization.NotifyProjectsEvaluatedBuildOperationType
 import org.gradle.initialization.NotifyProjectsLoadedBuildOperationType
 import org.gradle.initialization.buildsrc.BuildBuildSrcBuildOperationType
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
 import org.gradle.internal.taskgraph.CalculateTaskGraphBuildOperationType
+import org.gradle.internal.taskgraph.CalculateTreeTaskGraphBuildOperationType
 import org.gradle.launcher.exec.RunBuildBuildOperationType
 
 class BuildOperationNotificationIntegrationTest extends AbstractIntegrationSpec {
@@ -108,7 +108,6 @@ class BuildOperationNotificationIntegrationTest extends AbstractIntegrationSpec 
         notifications.finished(ExecuteTaskBuildOperationType.Result, [actionable: false, originExecutionTime: null, cachingDisabledReasonMessage: "Cacheability was not determined", upToDateMessages: [], cachingDisabledReasonCategory: "UNKNOWN", skipMessage: "UP-TO-DATE", originBuildInvocationId: null])
     }
 
-    @ToBeFixedForInstantExecution(because = "composite builds")
     def "can emit notifications for nested builds"() {
         when:
         file("buildSrc/build.gradle") << ""
@@ -212,20 +211,25 @@ class BuildOperationNotificationIntegrationTest extends AbstractIntegrationSpec 
         notifications.op(NotifyProjectAfterEvaluatedBuildOperationType.Details, [buildPath: ":buildSrc", projectPath: ":"]).parentId == notifications.op(ConfigureProjectBuildOperationType.Details, [buildPath: ":buildSrc", projectPath: ":"]).id
         notifications.op(NotifyProjectAfterEvaluatedBuildOperationType.Details, [buildPath: ":a:buildSrc", projectPath: ":"]).parentId == notifications.op(ConfigureProjectBuildOperationType.Details, [buildPath: ":a:buildSrc", projectPath: ":"]).id
 
-        notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":"]).parentId == notifications.op(RunBuildBuildOperationType.Details).id
-        notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":a"]).parentId == notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":"]).id
-        notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":buildSrc"]).parentId == notifications.op(BuildBuildSrcBuildOperationType.Details, [buildPath: ':']).id
-        notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":a:buildSrc"]).parentId == notifications.op(BuildBuildSrcBuildOperationType.Details, [buildPath: ':a']).id
+        def treeGraphOps = notifications.ops(CalculateTreeTaskGraphBuildOperationType.Details)
+        treeGraphOps.size() == 3
+        treeGraphOps[0].parentId == notifications.op(BuildBuildSrcBuildOperationType.Details, [buildPath: ':a']).id
+        treeGraphOps[1].parentId == notifications.op(BuildBuildSrcBuildOperationType.Details, [buildPath: ':']).id
+        treeGraphOps[2].parentId == notifications.op(RunBuildBuildOperationType.Details).id
 
-        notifications.op(NotifyTaskGraphWhenReadyBuildOperationType.Details, [buildPath: ":"]).parentId == notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":"]).id
-        notifications.op(NotifyTaskGraphWhenReadyBuildOperationType.Details, [buildPath: ":a"]).parentId == notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":a"]).id
-        notifications.op(NotifyTaskGraphWhenReadyBuildOperationType.Details, [buildPath: ":buildSrc"]).parentId == notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ':buildSrc']).id
-        notifications.op(NotifyTaskGraphWhenReadyBuildOperationType.Details, [buildPath: ":a:buildSrc"]).parentId == notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ':a:buildSrc']).id
+        notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":"]).parentId == treeGraphOps[2].id
+        notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":a"]).parentId == treeGraphOps[2].id
+        notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":buildSrc"]).parentId == treeGraphOps[1].id
+        notifications.op(CalculateTaskGraphBuildOperationType.Details, [buildPath: ":a:buildSrc"]).parentId == treeGraphOps[0].id
+
+        notifications.op(NotifyTaskGraphWhenReadyBuildOperationType.Details, [buildPath: ":"]).parentId == treeGraphOps[2].id
+        notifications.op(NotifyTaskGraphWhenReadyBuildOperationType.Details, [buildPath: ":a"]).parentId == treeGraphOps[2].id
+        notifications.op(NotifyTaskGraphWhenReadyBuildOperationType.Details, [buildPath: ":buildSrc"]).parentId == treeGraphOps[1].id
+        notifications.op(NotifyTaskGraphWhenReadyBuildOperationType.Details, [buildPath: ":a:buildSrc"]).parentId == treeGraphOps[0].id
 
         notifications.op(RunRootBuildWorkBuildOperationType.Details).parentId == notifications.op(RunBuildBuildOperationType.Details).id
     }
 
-    @ToBeFixedForInstantExecution(because = "GradleBuild task")
     def "emits for GradleBuild tasks"() {
         when:
         def initScript = file("init.gradle") << """

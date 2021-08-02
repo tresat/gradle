@@ -36,7 +36,7 @@ import java.io.File;
 import java.util.List;
 import java.util.Set;
 
-import static org.gradle.util.ConfigureUtil.configure;
+import static org.gradle.util.internal.ConfigureUtil.configure;
 
 /**
  * Enables fine-tuning project details (*.ipr file) of the IDEA plugin.
@@ -65,7 +65,7 @@ import static org.gradle.util.ConfigureUtil.configure;
  *     vcs = 'Git'
  *
  *     //you can change the modules of the *.ipr
- *     //modules = project(':someProject').idea.module
+ *     //modules = project(':some-project').idea.module
  *
  *     //you can change the output file
  *     outputFile = new File(outputFile.parentFile, 'someBetterName.ipr')

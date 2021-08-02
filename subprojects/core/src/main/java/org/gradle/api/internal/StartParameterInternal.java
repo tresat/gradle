@@ -17,38 +17,63 @@
 package org.gradle.api.internal;
 
 import org.gradle.StartParameter;
+import org.gradle.initialization.BuildLayoutParameters;
 import org.gradle.initialization.StartParameterBuildOptions.ConfigurationCacheProblemsOption;
+import org.gradle.internal.buildoption.BuildOption;
+import org.gradle.internal.buildtree.BuildModelParameters;
+import org.gradle.internal.watch.vfs.WatchMode;
 
+import javax.annotation.Nullable;
 import java.io.File;
+import java.util.List;
+
+import static org.gradle.api.internal.SettingsInternal.BUILD_SRC;
 
 public class StartParameterInternal extends StartParameter {
-    private boolean watchFileSystem;
+    private WatchMode watchFileSystemMode = WatchMode.DEFAULT;
+    private boolean watchFileSystemDebugLogging;
+    private boolean vfsVerboseLogging;
 
-    private boolean configurationCache;
+    private BuildOption.Value<Boolean> configurationCache = BuildOption.Value.defaultValue(false);
+    private BuildOption.Value<Boolean> isolatedProjects = BuildOption.Value.defaultValue(false);
     private ConfigurationCacheProblemsOption.Value configurationCacheProblems = ConfigurationCacheProblemsOption.Value.FAIL;
     private int configurationCacheMaxProblems = 512;
     private boolean configurationCacheRecreateCache;
     private boolean configurationCacheQuiet;
+    private boolean searchUpwards = true;
+    private boolean useEmptySettings = false;
 
-    @Override
-    public StartParameter newInstance() {
-        return prepareNewInstance(new StartParameterInternal());
+    public StartParameterInternal() {
+    }
+
+    protected StartParameterInternal(BuildLayoutParameters layoutParameters) {
+        super(layoutParameters);
     }
 
     @Override
-    public StartParameter newBuild() {
+    public StartParameterInternal newInstance() {
+        return (StartParameterInternal) prepareNewInstance(new StartParameterInternal());
+    }
+
+    @Override
+    public StartParameterInternal newBuild() {
         return prepareNewBuild(new StartParameterInternal());
     }
 
     @Override
-    protected StartParameter prepareNewBuild(StartParameter startParameter) {
+    protected StartParameterInternal prepareNewBuild(StartParameter startParameter) {
         StartParameterInternal p = (StartParameterInternal) super.prepareNewBuild(startParameter);
-        p.watchFileSystem = watchFileSystem;
+        p.watchFileSystemMode = watchFileSystemMode;
+        p.watchFileSystemDebugLogging = watchFileSystemDebugLogging;
+        p.vfsVerboseLogging = vfsVerboseLogging;
         p.configurationCache = configurationCache;
+        p.isolatedProjects = isolatedProjects;
         p.configurationCacheProblems = configurationCacheProblems;
         p.configurationCacheMaxProblems = configurationCacheMaxProblems;
         p.configurationCacheRecreateCache = configurationCacheRecreateCache;
         p.configurationCacheQuiet = configurationCacheQuiet;
+        p.searchUpwards = searchUpwards;
+        p.useEmptySettings = useEmptySettings;
         return p;
     }
 
@@ -60,36 +85,73 @@ public class StartParameterInternal extends StartParameter {
         this.gradleHomeDir = gradleHomeDir;
     }
 
-    public void useEmptySettingsWithoutDeprecationWarning() {
-        doUseEmptySettings();
+    public boolean isSearchUpwards() {
+        return searchUpwards;
     }
 
-    public boolean isUseEmptySettingsWithoutDeprecationWarning() {
-        return super.useEmptySettings;
+    public void doNotSearchUpwards() {
+        this.searchUpwards = false;
     }
 
-    public boolean isSearchUpwardsWithoutDeprecationWarning() {
-        return super.searchUpwards;
+    public boolean isUseEmptySettings() {
+        return useEmptySettings;
     }
 
-    public void setSearchUpwardsWithoutDeprecationWarning(boolean searchUpwards) {
-        super.searchUpwards = searchUpwards;
+    public void useEmptySettings() {
+        this.useEmptySettings = true;
     }
 
-    public boolean isWatchFileSystem() {
-        return watchFileSystem;
+    public WatchMode getWatchFileSystemMode() {
+        return watchFileSystemMode;
     }
 
-    public void setWatchFileSystem(boolean watchFileSystem) {
-        this.watchFileSystem = watchFileSystem;
+    public void setWatchFileSystemMode(WatchMode watchFileSystemMode) {
+        this.watchFileSystemMode = watchFileSystemMode;
     }
 
+    public boolean isWatchFileSystemDebugLogging() {
+        return watchFileSystemDebugLogging;
+    }
+
+    public void setWatchFileSystemDebugLogging(boolean watchFileSystemDebugLogging) {
+        this.watchFileSystemDebugLogging = watchFileSystemDebugLogging;
+    }
+
+    public boolean isVfsVerboseLogging() {
+        return vfsVerboseLogging;
+    }
+
+    public void setVfsVerboseLogging(boolean vfsVerboseLogging) {
+        this.vfsVerboseLogging = vfsVerboseLogging;
+    }
+
+    /**
+     * Used by the Kotlin plugin, via reflection.
+     */
+    @Deprecated
     public boolean isConfigurationCache() {
+        return getConfigurationCache().get();
+    }
+
+    /**
+     * Is the configuration cache requested? Note: depending on the build action, this may not be the final value for this option.
+     *
+     * Consider querying {@link BuildModelParameters} instead.
+     */
+    public BuildOption.Value<Boolean> getConfigurationCache() {
         return configurationCache;
     }
 
-    public void setConfigurationCache(boolean configurationCache) {
+    public void setConfigurationCache(BuildOption.Value<Boolean> configurationCache) {
         this.configurationCache = configurationCache;
+    }
+
+    public BuildOption.Value<Boolean> getIsolatedProjects() {
+        return isolatedProjects;
+    }
+
+    public void setIsolatedProjects(BuildOption.Value<Boolean> isolatedProjects) {
+        this.isolatedProjects = isolatedProjects;
     }
 
     public ConfigurationCacheProblemsOption.Value getConfigurationCacheProblems() {
@@ -122,5 +184,17 @@ public class StartParameterInternal extends StartParameter {
 
     public void setConfigurationCacheQuiet(boolean configurationCacheQuiet) {
         this.configurationCacheQuiet = configurationCacheQuiet;
+    }
+
+    /**
+     * The following special behavior wrt. how the build root is discovered, is implemented:
+     * - If the current folder is called 'buildSrc', we do not search upwards for a settings file
+     * - If the build runs the 'init' task, we do not search upwards for a settings file
+     *
+     * This has an influence on deciding which 'gradle.properties' to load (in the launcher) and which 'settings.gradle(.kts)' to use (in the daemon)
+     */
+    public static boolean useLocationAsProjectRoot(@Nullable File potentialProjectLocation, List<String> requestedTaskNames) {
+        return requestedTaskNames.contains("init")
+            || potentialProjectLocation != null && potentialProjectLocation.getName().equals(BUILD_SRC);
     }
 }

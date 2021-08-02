@@ -16,7 +16,7 @@
 
 package org.gradle.language.cpp.tasks
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.integtests.fixtures.SourceFile
 import org.gradle.language.nativeplatform.tasks.AbstractUnexportMainSymbolIntegrationTest
 import org.gradle.nativeplatform.fixtures.RequiresInstalledToolChain
@@ -34,7 +34,7 @@ import spock.lang.Issue
 class CppUnexportMainSymbolIntegrationTest extends AbstractUnexportMainSymbolIntegrationTest {
     @RequiresInstalledToolChain(ToolChainRequirement.VISUALCPP)
     @Issue("https://github.com/gradle/gradle-native/issues/277")
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "can relocate Windows specific _wmain symbol"() {
         makeSingleProject()
         file("src/main/cpp/main.cpp") << """
@@ -69,11 +69,11 @@ class CppUnexportMainSymbolIntegrationTest extends AbstractUnexportMainSymbolInt
         return ":compileDebugCpp"
     }
 
-    final List<String> mainSymbols = ["_main", "main", "_wmain", "wmain"]
+    List<String> mainSymbols = ["_main", "main", "_wmain", "wmain"]
 
     protected SourceFileElement mainFile = getMainFile()
     protected SourceFileElement alternateMainFile = new SourceFileElement() {
-        final SourceFile sourceFile = sourceFile("cpp", "main.cpp", """
+        final SourceFile sourceFile = new SourceFile("cpp", "main.cpp", """
             #include <iostream>
 
             int main(int argc, char* argv[]) {
@@ -86,7 +86,7 @@ class CppUnexportMainSymbolIntegrationTest extends AbstractUnexportMainSymbolInt
     @Override
     protected SourceFileElement getOtherFile() {
         return new SourceFileElement() {
-            final SourceFile sourceFile = sourceFile("cpp", "other.cpp", """
+            final SourceFile sourceFile = new SourceFile("cpp", "other.cpp", """
             class Other {};
         """)
         }
@@ -129,7 +129,7 @@ class CppUnexportMainSymbolIntegrationTest extends AbstractUnexportMainSymbolInt
     @Override
     protected SourceFileElement getMainFile(String filenameWithoutExtension) {
         return new SourceFileElement() {
-            final SourceFile sourceFile = sourceFile("cpp", "${filenameWithoutExtension}.cpp", """
+            final SourceFile sourceFile = new SourceFile("cpp", "${filenameWithoutExtension}.cpp", """
             #include <iostream>
 
             int main(int argc, char* argv[]) {

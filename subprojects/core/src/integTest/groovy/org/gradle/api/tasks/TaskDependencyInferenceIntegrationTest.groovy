@@ -17,7 +17,7 @@
 package org.gradle.api.tasks
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import spock.lang.Unroll
 
 class TaskDependencyInferenceIntegrationTest extends AbstractIntegrationSpec implements TasksWithInputsAndOutputs {
@@ -242,6 +242,27 @@ class TaskDependencyInferenceIntegrationTest extends AbstractIntegrationSpec imp
 
         then:
         result.assertTasksExecuted(":b", ":c")
+    }
+
+    def "dependency declared using orElse provider whose original value is missing and alternative value is missing task output file property doesn't imply dependency on task"() {
+        taskTypeWithOutputFileProperty()
+        buildFile << """
+            def taskA = tasks.create("a", FileProducer) {
+                // no output value
+            }
+            def taskB = tasks.create("b", FileProducer) {
+                // no output value
+            }
+            tasks.register("c") {
+                dependsOn taskA.output.orElse(taskB.output)
+            }
+        """
+
+        when:
+        run("c")
+
+        then:
+        result.assertTasksExecuted(":c")
     }
 
     def "dependency declared using orElse provider whose original value is missing and alternative value is constant does not imply task dependency"() {
@@ -535,7 +556,6 @@ The following types/formats are supported:
         file("out.txt").text == "1"
     }
 
-    @ToBeFixedForInstantExecution(because = "queries mapped value of task output before it has completed")
     def "input file collection containing filtered tree of task output implies dependency on the task"() {
         taskTypeWithOutputDirectoryProperty()
         taskTypeWithInputFileCollection()
@@ -698,7 +718,6 @@ The following types/formats are supported:
         file("out.txt").text == "b"
     }
 
-    @ToBeFixedForInstantExecution(because = "queries mapped value of task output before it has completed")
     def "input file collection containing mapped task output property implies dependency on a specific output of the task"() {
         taskTypeWithMultipleOutputFileProperties()
         taskTypeWithInputFileCollection()
@@ -890,7 +909,7 @@ The following types/formats are supported:
         file("out.txt").text == "22"
     }
 
-    @ToBeFixedForInstantExecution(because = "queries mapped value of task output before it has completed")
+    @ToBeFixedForConfigurationCache(because = "queries mapped value of task output before it has completed")
     def "ad hoc input property with value of mapped task output implies dependency on the task"() {
         taskTypeWithOutputFileProperty()
         buildFile << """

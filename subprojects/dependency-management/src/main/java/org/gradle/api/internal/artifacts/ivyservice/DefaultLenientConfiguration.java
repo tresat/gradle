@@ -25,6 +25,7 @@ import org.gradle.api.artifacts.ResolvedDependency;
 import org.gradle.api.artifacts.UnresolvedDependency;
 import org.gradle.api.artifacts.component.ComponentIdentifier;
 import org.gradle.api.attributes.AttributeContainer;
+import org.gradle.api.capabilities.Capability;
 import org.gradle.api.internal.artifacts.DependencyGraphNodeResult;
 import org.gradle.api.internal.artifacts.ResolveArtifactsBuildOperationType;
 import org.gradle.api.internal.artifacts.configurations.ConfigurationInternal;
@@ -112,9 +113,8 @@ public class DefaultLenientConfiguration implements LenientConfiguration, Visite
 
     @Override
     public SelectedArtifactSet select(final Spec<? super Dependency> dependencySpec, final AttributeContainerInternal requestedAttributes, final Spec<? super ComponentIdentifier> componentSpec, boolean allowNoMatchingVariants) {
-        final SelectedArtifactResults artifactResults;
         VariantSelector selector = artifactTransforms.variantSelector(requestedAttributes, allowNoMatchingVariants, configuration.getDependenciesResolver());
-        artifactResults = this.artifactResults.select(componentSpec, selector);
+        SelectedArtifactResults artifactResults = this.artifactResults.select(componentSpec, selector);
 
         return new SelectedArtifactSet() {
             @Override
@@ -295,7 +295,7 @@ public class DefaultLenientConfiguration implements LenientConfiguration, Visite
         final Set<File> files = Sets.newLinkedHashSet();
 
         @Override
-        public void visitArtifact(DisplayName variantName, AttributeContainer variantAttributes, ResolvableArtifact artifact) {
+        public void visitArtifact(DisplayName variantName, AttributeContainer variantAttributes, List<? extends Capability> capabilities, ResolvableArtifact artifact) {
             try {
                 ResolvedArtifact resolvedArtifact = artifact.toPublicView();
                 files.add(resolvedArtifact.getFile());

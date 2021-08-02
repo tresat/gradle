@@ -22,7 +22,7 @@ import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
 import org.gradle.internal.jvm.Jvm
 import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
-import org.gradle.util.TextUtil
+import org.gradle.util.internal.TextUtil
 import spock.lang.IgnoreIf
 import spock.lang.Issue
 
@@ -128,7 +128,7 @@ assert classesDir.directory
                 }
             }
         """
-        if (!GradleContextualExecuter.instant) {
+        if (!GradleContextualExecuter.configCache) {
             buildFile << """
                 println('prop2=' + System.getProperty('prop2'))
             """
@@ -208,7 +208,7 @@ org.gradle.java.home=${TextUtil.escapeString(alternateJavaHome.canonicalPath)}
                 }
             }
         """
-        if (!GradleContextualExecuter.instant) {
+        if (!GradleContextualExecuter.configCache) {
             buildFile << """
                 println('prop2=' + System.getProperty('prop2'))
             """

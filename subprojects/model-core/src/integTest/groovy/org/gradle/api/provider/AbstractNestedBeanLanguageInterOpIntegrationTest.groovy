@@ -17,15 +17,10 @@
 package org.gradle.api.provider
 
 import org.gradle.api.internal.provider.AbstractLanguageInterOpIntegrationTest
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
 
 abstract class AbstractNestedBeanLanguageInterOpIntegrationTest extends AbstractLanguageInterOpIntegrationTest {
     abstract void pluginDefinesTask()
 
-    @ToBeFixedForInstantExecution(
-        because = "Kotlin Gradle Plugin",
-        bottomSpecs = ["NestedBeanKotlinInterOpIntegrationTest"]
-    )
     def "attaches diagnostic information to property"() {
         pluginDefinesTask()
 

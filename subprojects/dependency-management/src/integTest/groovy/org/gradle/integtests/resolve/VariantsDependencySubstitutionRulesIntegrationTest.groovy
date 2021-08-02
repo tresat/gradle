@@ -18,7 +18,7 @@
 package org.gradle.integtests.resolve
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.integtests.fixtures.resolve.ResolveTestFixture
 import spock.lang.Issue
 import spock.lang.Unroll
@@ -41,7 +41,7 @@ class VariantsDependencySubstitutionRulesIntegrationTest extends AbstractIntegra
             configurations {
                 conf {
                     resolutionStrategy.dependencySubstitution {
-                        substitute module('org:lib') with $notation
+                        substitute module('org:lib') using $notation
                     }
                 }
             }
@@ -104,7 +104,7 @@ class VariantsDependencySubstitutionRulesIntegrationTest extends AbstractIntegra
             configurations {
                 conf {
                     resolutionStrategy.dependencySubstitution {
-                        substitute $notation with module('org:lib:1.0')
+                        substitute $notation using module('org:lib:1.0')
                     }
                 }
             }
@@ -142,7 +142,7 @@ class VariantsDependencySubstitutionRulesIntegrationTest extends AbstractIntegra
 
     }
 
-    @ToBeFixedForInstantExecution(because = "fails serialization of resolution error")
+    @ToBeFixedForConfigurationCache(because = "fails serialization of resolution error")
     def "can substitute a dependency without capabilities with a dependency with capabilities"() {
         mavenRepo.module("org", "lib", "1.0").publish()
 
@@ -155,7 +155,7 @@ class VariantsDependencySubstitutionRulesIntegrationTest extends AbstractIntegra
             configurations {
                 conf {
                     resolutionStrategy.dependencySubstitution {
-                        substitute module('org:lib:1.0') with variant(module('org:lib:1.0')) {
+                        substitute module('org:lib:1.0') using variant(module('org:lib:1.0')) {
                             capabilities {
                                 requireCapability 'org:lib-test-fixtures'
                             }
@@ -188,7 +188,7 @@ class VariantsDependencySubstitutionRulesIntegrationTest extends AbstractIntegra
             configurations {
                 conf {
                     resolutionStrategy.dependencySubstitution {
-                        substitute project(':other') with variant(module('org:lib:1.0')) {
+                        substitute project(':other') using variant(module('org:lib:1.0')) {
                             capabilities {
                                 requireCapability 'org:lib-test-fixtures'
                             }
@@ -229,7 +229,7 @@ class VariantsDependencySubstitutionRulesIntegrationTest extends AbstractIntegra
                             capabilities {
                                 requireCapability 'org:lib-test-fixtures'
                             }
-                        } with module('org:lib:1.0')
+                        } using module('org:lib:1.0')
                     }
                 }
             }
@@ -276,7 +276,7 @@ class VariantsDependencySubstitutionRulesIntegrationTest extends AbstractIntegra
                             capabilities {
                                 requireCapability 'org:lib-test-fixtures'
                             }
-                        } with project(':other')
+                        } using project(':other')
                     }
                 }
             }

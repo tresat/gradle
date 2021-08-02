@@ -15,29 +15,28 @@
  */
 package org.gradle.plugins.ide.eclipse
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.junit.Test
 
 class EclipseTestSourcesIntegrationTest extends AbstractEclipseIntegrationTest {
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void "All test source folders and test dependencies are marked with test attribute"() {
         //when
         file('src/main/java').mkdirs()
         file('src/test/java').mkdirs()
         runEclipseTask """
-apply plugin: 'java'
-apply plugin: 'eclipse'
+            apply plugin: 'java'
+            apply plugin: 'eclipse'
 
-repositories.jcenter()
+            ${mavenCentralRepository()}
 
-dependencies {
-     implementation "com.google.guava:guava:21.0"
-     testImplementation "junit:junit:4.13"
-}
-
-"""
+            dependencies {
+                 implementation "com.google.guava:guava:21.0"
+                 testImplementation "junit:junit:4.13"
+            }
+        """
 
         //then
         classpath.lib("guava-21.0.jar").assertHasNoAttribute("test", "true")

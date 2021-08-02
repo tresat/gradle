@@ -74,7 +74,7 @@ public class DaemonBuildOptions extends BuildOptionSet<DaemonParameters> {
         @Override
         public void applyTo(String value, DaemonParameters settings, Origin origin) {
             try {
-                settings.setIdleTimeout(Integer.valueOf(value));
+                settings.setIdleTimeout(Integer.parseInt(value));
             } catch (NumberFormatException e) {
                 origin.handleInvalidValue(value, "the value should be an int");
             }
@@ -91,7 +91,7 @@ public class DaemonBuildOptions extends BuildOptionSet<DaemonParameters> {
         @Override
         public void applyTo(String value, DaemonParameters settings, Origin origin) {
             try {
-                settings.setPeriodicCheckInterval(Integer.valueOf(value));
+                settings.setPeriodicCheckInterval(Integer.parseInt(value));
             } catch (NumberFormatException e) {
                 origin.handleInvalidValue(value, "the value should be an int");
             }
@@ -164,7 +164,7 @@ public class DaemonBuildOptions extends BuildOptionSet<DaemonParameters> {
         public static final String GRADLE_PROPERTY = "org.gradle.daemon";
 
         public DaemonOption() {
-            super(GRADLE_PROPERTY, BooleanCommandLineOptionConfiguration.create("daemon", "Uses the Gradle Daemon to run the build. Starts the Daemon if not running.", "Do not use the Gradle daemon to run the build. Useful occasionally if you have configured Gradle to always run with the daemon by default."));
+            super(GRADLE_PROPERTY, BooleanCommandLineOptionConfiguration.create("daemon", "Uses the Gradle daemon to run the build. Starts the daemon if not running.", "Do not use the Gradle daemon to run the build. Useful occasionally if you have configured Gradle to always run with the daemon by default."));
         }
 
         @Override
@@ -175,7 +175,7 @@ public class DaemonBuildOptions extends BuildOptionSet<DaemonParameters> {
 
     public static class ForegroundOption extends EnabledOnlyBooleanBuildOption<DaemonParameters> {
         public ForegroundOption() {
-            super(null, CommandLineOptionConfiguration.create("foreground", "Starts the Gradle Daemon in the foreground."));
+            super(null, CommandLineOptionConfiguration.create("foreground", "Starts the Gradle daemon in the foreground."));
         }
 
         @Override
@@ -186,7 +186,7 @@ public class DaemonBuildOptions extends BuildOptionSet<DaemonParameters> {
 
     public static class StopOption extends EnabledOnlyBooleanBuildOption<DaemonParameters> {
         public StopOption() {
-            super(null, CommandLineOptionConfiguration.create("stop", "Stops the Gradle Daemon if it is running."));
+            super(null, CommandLineOptionConfiguration.create("stop", "Stops the Gradle daemon if it is running."));
         }
 
         @Override
@@ -197,7 +197,7 @@ public class DaemonBuildOptions extends BuildOptionSet<DaemonParameters> {
 
     public static class StatusOption extends EnabledOnlyBooleanBuildOption<DaemonParameters> {
         public StatusOption() {
-            super(null, CommandLineOptionConfiguration.create("status", "Shows status of running and recently stopped Gradle Daemon(s)."));
+            super(null, CommandLineOptionConfiguration.create("status", "Shows status of running and recently stopped Gradle daemon(s)."));
         }
 
         @Override
@@ -210,7 +210,7 @@ public class DaemonBuildOptions extends BuildOptionSet<DaemonParameters> {
         public static final String GRADLE_PROPERTY = "org.gradle.priority";
 
         public PriorityOption() {
-            super(GRADLE_PROPERTY, CommandLineOptionConfiguration.create("priority", "Specifies the scheduling priority for the Gradle daemon and all processes launched by it. Values are 'normal' (default) or 'low'").incubating());
+            super(GRADLE_PROPERTY, CommandLineOptionConfiguration.create("priority", "Specifies the scheduling priority for the Gradle daemon and all processes launched by it. Values are 'normal' (default) or 'low'"));
         }
 
         @Override

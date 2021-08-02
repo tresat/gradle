@@ -17,8 +17,8 @@
 package org.gradle.integtests.resolve.verification
 
 import org.gradle.api.internal.artifacts.ivyservice.CacheLayout
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.gradle.security.fixtures.KeyServer
 import org.gradle.security.fixtures.SigningFixtures
 import org.gradle.security.internal.Fingerprint
@@ -54,10 +54,9 @@ class DependencyVerificationSignatureCheckIntegTest extends AbstractSignatureVer
 
         when:
         serveValidKey()
-        succeeds ":compileJava"
 
         then:
-        outputContains("Dependency verification is an incubating feature.")
+        succeeds ":compileJava"
     }
 
     def "doesn't need checksums if signature is verified and trust using long id"() {
@@ -83,10 +82,9 @@ class DependencyVerificationSignatureCheckIntegTest extends AbstractSignatureVer
 
         when:
         serveValidKey()
-        succeeds ":compileJava"
 
         then:
-        outputContains("Dependency verification is an incubating feature.")
+        succeeds ":compileJava"
     }
 
     @Unroll
@@ -179,7 +177,7 @@ This can indicate that a dependency has been compromised. Please carefully verif
         terse << [true, false]
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     @Unroll
     def "can verify signature for artifacts downloaded in a previous build (stop in between = #stopInBetween)"() {
         given:
@@ -196,11 +194,8 @@ This can indicate that a dependency has been compromised. Please carefully verif
             }
         """
 
-        when:
+        expect:
         succeeds ":compileJava"
-
-        then:
-        outputDoesNotContain "Dependency verification is an incubating feature."
 
         when:
         createMetadataFile {
@@ -225,7 +220,7 @@ This can indicate that a dependency has been compromised. Please carefully verif
         stopInBetween << [false, true]
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     @Unroll
     def "can verify classified artifacts downloaded in previous builds (stop in between = #stopInBetween)"() {
         def keyring = newKeyRing()
@@ -247,11 +242,8 @@ This can indicate that a dependency has been compromised. Please carefully verif
             }
         """
 
-        when:
+        expect:
         succeeds ":compileJava"
-
-        then:
-        outputDoesNotContain "Dependency verification is an incubating feature."
 
         when:
         createMetadataFile {
@@ -598,11 +590,8 @@ This can indicate that a dependency has been compromised. Please carefully verif
             }
         """
 
-        when:
+        expect:
         succeeds ":compileJava"
-
-        then:
-        outputContains("Dependency verification is an incubating feature.")
 
         cleanup:
         secondServer.stop()
@@ -803,7 +792,7 @@ This can indicate that a dependency has been compromised. Please carefully verif
     // This test exercises the fact that the signature cache is aware
     // of changes of the artifact
     @Unroll
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "can detect tampered file between builds (terse output=#terse)"() {
         createMetadataFile {
             keyServer(keyServerFixture.uri)
@@ -856,7 +845,7 @@ This can indicate that a dependency has been compromised. Please carefully verif
         terse << [true, false]
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     @Unroll
     def "caching takes trusted keys into account (terse output=#terse)"() {
         createMetadataFile {
@@ -1249,10 +1238,10 @@ If the artifacts are trustworthy, you will need to update the gradle/verificatio
 
         when:
         serveValidKey()
-        succeeds ":compileJava"
 
         then:
-        outputContains("Dependency verification is an incubating feature.")
+        succeeds ":compileJava"
+
     }
 
     @Unroll
@@ -1294,9 +1283,7 @@ If the artifacts are trustworthy, you will need to update the gradle/verificatio
         }
 
         then:
-        if (addLocalKey) {
-            outputContains("Dependency verification is an incubating feature.")
-        } else {
+        if (!addLocalKey) {
             failure.assertHasCause """Dependency verification failed for configuration ':compileClasspath':
   - On artifact foo-1.0.jar (org:foo:1.0) in repository 'maven': Artifact was signed with key '${pkId}' (test-user@gradle.com) and passed verification but the key isn't in your trusted keys list.
   - On artifact foo-1.0.pom (org:foo:1.0) in repository 'maven': Artifact was signed with key '${pkId}' (test-user@gradle.com) and passed verification but the key isn't in your trusted keys list.
@@ -1308,7 +1295,7 @@ If the artifacts are trustworthy, you will need to update the gradle/verificatio
         addLocalKey << [true, false]
     }
 
-    def "can read public keys from keyring"() {
+    def "can read public keys from #keyRingFormat keyring"() {
         // key will not be published on the server fixture but available locally
         def keyring = newKeyRing()
         def pkId = toLongIdHexString(keyring.publicKey.keyID)
@@ -1319,7 +1306,13 @@ If the artifacts are trustworthy, you will need to update the gradle/verificatio
             addTrustedKey("org:foo:1.0", pkId)
             addTrustedKey("org:foo:1.0", pkId, "pom", "pom")
         }
-        keyring.writePublicKeyRingTo(file("gradle/verification-keyring.gpg"))
+
+        def verifFile = file("gradle/verification-keyring.${extension}")
+        keyring.writePublicKeyRingTo(verifFile)
+        if (header != null) {
+            verifFile.setText("""$header
+${verifFile.getText('us-ascii')}""", 'us-ascii')
+        }
 
         given:
         javaLibrary()
@@ -1334,16 +1327,18 @@ If the artifacts are trustworthy, you will need to update the gradle/verificatio
             }
         """
 
-        when:
+        expect:
         succeeds ":compileJava"
 
-        then:
-        outputContains("Dependency verification is an incubating feature.")
-
+        where:
+        keyRingFormat       | extension | header
+        'GPG'               | 'gpg'     | null
+        'ASCII'             | 'keys'    | null
+        'ASCII with header' | 'keys'    | 'some comment showing we can have arbitrary text'
     }
 
     @Unroll
-    @UnsupportedWithInstantExecution
+    @UnsupportedWithConfigurationCache
     def "can verify dependencies in a buildFinished hook (terse output=#terse)"() {
         createMetadataFile {
             keyServer(keyServerFixture.uri)
@@ -1382,6 +1377,91 @@ One artifact failed verification: foo-1.0.jar (org:foo:1.0) from repository mave
 """
         where:
         terse << [true, false]
+    }
+
+    def "dependency verification should work correctly with artifact queries"() {
+        createMetadataFile {
+            keyServer(keyServerFixture.uri)
+            verifySignatures()
+            addTrustedKey("org:foo:1.0", validPublicKeyHexString, "pom", "pom")
+            addTrustedKey("org:foo:1.0", validPublicKeyHexString, "jar", "jar")
+            addTrustedKeyByFileName("org:foo:1.0", "foo-1.0-javadoc.jar", validPublicKeyHexString)
+            addTrustedKeyByFileName("org:foo:1.0", "foo-1.0-sources.jar", validPublicKeyHexString)
+        }
+
+        terseConsoleOutput(false)
+        javaLibrary()
+        def module = mavenHttpRepo.module("org", "foo", "1.0")
+            .withSourceAndJavadoc()
+            .publish()
+
+        buildFile << """
+            dependencies {
+                implementation "org:foo:1.0"
+            }
+
+            tasks.register("artifactQuery") {
+                doLast {
+                    dependencies.createArtifactResolutionQuery()
+                        .forModule("org", "foo", "1.0")
+                        .withArtifacts(JvmLibrary, SourcesArtifact, JavadocArtifact)
+                        .execute()
+                        .components
+                        .each {
+                            // trigger file access for verification to happen
+                            it.getArtifacts(SourcesArtifact)*.file
+                            it.getArtifacts(JavadocArtifact)*.file
+                        }
+                }
+            }
+        """
+
+        when:
+        module.pom.expectGet()
+        module.getArtifact(type:'pom.asc').expectGet()
+        module.getArtifact(classifier:'sources').expectHead()
+        module.getArtifact(classifier:'sources').expectGet()
+        module.getArtifact(classifier:'sources', type:'jar.asc').expectGet()
+        module.getArtifact(classifier:'javadoc').expectHead()
+        module.getArtifact(classifier:'javadoc').expectGet()
+        module.getArtifact(classifier:'javadoc', type:'jar.asc').expectGet()
+        run ":artifactQuery"
+
+        then:
+        noExceptionThrown()
+    }
+
+    def "can disable reaching out to key servers"() {
+        createMetadataFile {
+            keyServer(keyServerFixture.uri) // make sure we declare a key server for tests
+            disableKeyServers() // but disable access to the key server
+            verifySignatures()
+            addTrustedKey("org:foo:1.0", validPublicKeyHexString)
+            addTrustedKey("org:foo:1.0", validPublicKeyHexString, "pom", "pom")
+        }
+
+        given:
+        javaLibrary()
+        uncheckedModule("org", "foo", "1.0") {
+            withSignature {
+                signAsciiArmored(it)
+            }
+        }
+        buildFile << """
+            dependencies {
+                implementation "org:foo:1.0"
+            }
+        """
+
+        when:
+        fails ":compileJava"
+
+        then:
+        failure.assertHasCause """Dependency verification failed for configuration ':compileClasspath'
+2 artifacts failed verification:
+  - foo-1.0.jar (org:foo:1.0) from repository maven
+  - foo-1.0.pom (org:foo:1.0) from repository maven
+This can indicate that a dependency has been compromised. Please carefully verify the signatures and checksums. Key servers are disabled, this can indicate that you need to update the local keyring with the missing keys."""
     }
 
     private static void tamperWithFile(File file) {

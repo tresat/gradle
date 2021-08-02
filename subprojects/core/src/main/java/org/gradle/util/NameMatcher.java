@@ -22,8 +22,11 @@ import java.util.regex.Pattern;
 import org.apache.commons.lang.StringUtils;
 
 /**
- * Selects a single item from a collection based on a camel case pattern.
+ * This class is only here to maintain binary compatibility with existing plugins.
+ *
+ * @deprecated Will be removed in Gradle 8.0.
  */
+@Deprecated
 public class NameMatcher {
     private final SortedSet<String> matches = new TreeSet<>();
     private final Set<String> candidates = new TreeSet<>();
@@ -73,29 +76,38 @@ public class NameMatcher {
         Pattern normalisedCamelCasePattern = Pattern.compile(camelCasePattern.pattern(), Pattern.CASE_INSENSITIVE);
         String normalisedPattern = pattern.toUpperCase();
         Pattern kebabCasePattern = getKebabCasePatternForName(pattern);
+        Pattern kebabCasePrefixPattern = Pattern.compile(kebabCasePattern.pattern() + "[\\p{javaLowerCase}\\p{Digit}-]*");
 
         Set<String> caseInsensitiveMatches = new TreeSet<>();
         Set<String> caseSensitiveCamelCaseMatches = new TreeSet<>();
         Set<String> caseInsensitiveCamelCaseMatches = new TreeSet<>();
         Set<String> kebabCaseMatches = new TreeSet<>();
+        Set<String> kebabCasePrefixMatches = new TreeSet<>();
 
         for (String candidate : items) {
+            boolean found = false;
+
             if (candidate.equalsIgnoreCase(pattern)) {
                 caseInsensitiveMatches.add(candidate);
+                found = true;
             }
             if (camelCasePattern.matcher(candidate).matches()) {
                 caseSensitiveCamelCaseMatches.add(candidate);
-                continue;
+                found = true;
             }
             if (normalisedCamelCasePattern.matcher(candidate).lookingAt()) {
                 caseInsensitiveCamelCaseMatches.add(candidate);
-                continue;
+                found = true;
             }
             if (kebabCasePattern.matcher(candidate).matches()) {
                 kebabCaseMatches.add(candidate);
-                continue;
+                found = true;
             }
-            if (StringUtils.getLevenshteinDistance(normalisedPattern, candidate.toUpperCase()) <= Math.min(3, pattern.length() / 2)) {
+            if (kebabCasePrefixPattern.matcher(candidate).matches()) {
+                kebabCasePrefixMatches.add(candidate);
+                found = true;
+            }
+            if (!found && StringUtils.getLevenshteinDistance(normalisedPattern, candidate.toUpperCase()) <= Math.min(3, pattern.length() / 2)) {
                 candidates.add(candidate);
             }
         }
@@ -104,12 +116,14 @@ public class NameMatcher {
             matches.addAll(caseInsensitiveMatches);
         } else if (!caseSensitiveCamelCaseMatches.isEmpty()) {
             matches.addAll(caseSensitiveCamelCaseMatches);
-        } else {
+        } else if (kebabCaseMatches.isEmpty() && kebabCasePrefixMatches.isEmpty()) {
             matches.addAll(caseInsensitiveCamelCaseMatches);
         }
 
         if (!kebabCaseMatches.isEmpty()) {
             matches.addAll(kebabCaseMatches);
+        } else if (!kebabCasePrefixMatches.isEmpty()) {
+            matches.addAll(kebabCasePrefixMatches);
         }
 
         if (matches.size() == 1) {
@@ -155,7 +169,6 @@ public class NameMatcher {
             pos = matcher.end();
         }
         builder.append(Pattern.quote(name.substring(pos)));
-        builder.append("[\\p{javaLowerCase}\\p{Digit}-]*");
         return Pattern.compile(builder.toString());
     }
 

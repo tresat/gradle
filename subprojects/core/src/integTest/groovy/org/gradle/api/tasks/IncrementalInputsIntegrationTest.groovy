@@ -16,7 +16,7 @@
 
 package org.gradle.api.tasks
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.internal.execution.history.changes.ChangeTypeInternal
 import org.gradle.work.Incremental
 import spock.lang.Issue
@@ -84,7 +84,7 @@ class IncrementalInputsIntegrationTest extends AbstractIncrementalTasksIntegrati
     }
 
     @Issue("https://github.com/gradle/gradle/issues/4166")
-    @ToBeFixedForInstantExecution(because = "task wrongly up-to-date")
+    @ToBeFixedForConfigurationCache(because = "task wrongly up-to-date")
     def "file in input dir appears in task inputs for #inputAnnotation"() {
         buildFile << """
             abstract class MyTask extends DefaultTask {
@@ -239,10 +239,11 @@ class IncrementalInputsIntegrationTest extends AbstractIncrementalTasksIntegrati
         """
 
         file("input").createDir()
+        def inputPath = file('input').absolutePath
 
         expect:
         fails("myTask")
-        failureHasCause("Multiple entries with same key: ${file('input').absolutePath}=inputTwo and ${file('input').absolutePath}=inputOne")
+        failureHasCause("Multiple entries with same value: inputTwo=$inputPath and inputOne=$inputPath")
     }
 
     def "two incremental file properties can point to the same file"() {
@@ -279,7 +280,7 @@ class IncrementalInputsIntegrationTest extends AbstractIncrementalTasksIntegrati
         succeeds("myTask")
     }
 
-    @ToBeFixedForInstantExecution(because = "task wrongly up-to-date")
+    @ToBeFixedForConfigurationCache(because = "task wrongly up-to-date")
     def "empty providers can be queried for incremental changes"() {
         file("buildSrc").deleteDir()
         buildFile.text = """
@@ -392,8 +393,6 @@ class IncrementalInputsIntegrationTest extends AbstractIncrementalTasksIntegrati
     def "provides the file type"() {
         file("buildSrc").deleteDir()
         buildFile.text = """
-            import javax.inject.Inject
-
             abstract class MyCopy extends DefaultTask {
                 @Incremental
                 @PathSensitive(PathSensitivity.RELATIVE)

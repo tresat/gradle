@@ -1,7 +1,5 @@
 package org.gradle.kotlin.dsl.plugins.dsl
 
-import org.gradle.api.internal.DocumentationRegistry
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
 import org.gradle.kotlin.dsl.fixtures.AbstractPluginTest
 import org.gradle.kotlin.dsl.fixtures.containsMultiLineString
 import org.gradle.kotlin.dsl.fixtures.normalisedPath
@@ -17,7 +15,6 @@ import org.junit.Test
 class KotlinDslPluginTest : AbstractPluginTest() {
 
     @Test
-    @ToBeFixedForInstantExecution
     fun `warns on unexpected kotlin-dsl plugin version`() {
 
         // The test applies the in-development version of the kotlin-dsl
@@ -26,9 +23,11 @@ class KotlinDslPluginTest : AbstractPluginTest() {
         // (see publishedKotlinDslPluginsVersion in kotlin-dsl.gradle.kts)
         withKotlinDslPlugin()
 
-        withDefaultSettings().appendText("""
+        withDefaultSettings().appendText(
+            """
             rootProject.name = "forty-two"
-        """)
+            """
+        )
 
         val appliedKotlinDslPluginsVersion = futurePluginVersions["org.gradle.kotlin.kotlin-dsl"]
         build("help").apply {
@@ -39,12 +38,13 @@ class KotlinDslPluginTest : AbstractPluginTest() {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
     fun `gradle kotlin dsl api dependency is added`() {
 
         withKotlinDslPlugin()
 
-        withFile("src/main/kotlin/code.kt", """
+        withFile(
+            "src/main/kotlin/code.kt",
+            """
 
             // src/main/kotlin
             import org.gradle.kotlin.dsl.GradleDsl
@@ -52,7 +52,8 @@ class KotlinDslPluginTest : AbstractPluginTest() {
             // src/generated
             import org.gradle.kotlin.dsl.embeddedKotlinVersion
 
-        """)
+            """
+        )
 
         val result = build("classes")
 
@@ -60,10 +61,14 @@ class KotlinDslPluginTest : AbstractPluginTest() {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
     fun `gradle kotlin dsl api is available for test implementation`() {
 
-        withBuildScript("""
+        assumeNonEmbeddedGradleExecuter() // Requires a Gradle distribution on the test-under-test classpath, but gradleApi() does not offer the full distribution
+
+        ignoreKotlinDaemonJvmDeprecationWarningsOnJdk16()
+
+        withBuildScript(
+            """
 
             plugins {
                 `kotlin-dsl`
@@ -75,9 +80,12 @@ class KotlinDslPluginTest : AbstractPluginTest() {
                 testImplementation("junit:junit:4.13")
             }
 
-        """)
+            """
+        )
 
-        withFile("src/main/kotlin/code.kt", """
+        withFile(
+            "src/main/kotlin/code.kt",
+            """
 
             import org.gradle.api.Plugin
             import org.gradle.api.Project
@@ -90,9 +98,12 @@ class KotlinDslPluginTest : AbstractPluginTest() {
                     }
                 }
             }
-        """)
+            """
+        )
 
-        withFile("src/test/kotlin/test.kt", """
+        withFile(
+            "src/test/kotlin/test.kt",
+            """
 
             import org.gradle.testfixtures.ProjectBuilder
             import org.junit.Test
@@ -107,19 +118,22 @@ class KotlinDslPluginTest : AbstractPluginTest() {
                     }
                 }
             }
-        """)
+            """
+        )
 
         assertThat(
             outputOf("test", "-i"),
-            containsString("Plugin Using Embedded Kotlin "))
+            containsString("Plugin Using Embedded Kotlin ")
+        )
     }
 
     @Test
-    @ToBeFixedForInstantExecution
     fun `gradle kotlin dsl api is available in test-kit injected plugin classpath`() {
         assumeNonEmbeddedGradleExecuter() // requires a full distribution to run tests with test kit
+        ignoreKotlinDaemonJvmDeprecationWarningsOnJdk16()
 
-        withBuildScript("""
+        withBuildScript(
+            """
 
             plugins {
                 `kotlin-dsl`
@@ -142,9 +156,12 @@ class KotlinDslPluginTest : AbstractPluginTest() {
                 }
             }
 
-        """)
+            """
+        )
 
-        withFile("src/main/kotlin/my/code.kt", """
+        withFile(
+            "src/main/kotlin/my/code.kt",
+            """
             package my
 
             import org.gradle.api.*
@@ -155,9 +172,12 @@ class KotlinDslPluginTest : AbstractPluginTest() {
                     println("Plugin Using Embedded Kotlin " + embeddedKotlinVersion)
                 }
             }
-        """)
+            """
+        )
 
-        withFile("src/test/kotlin/test.kt", """
+        withFile(
+            "src/test/kotlin/test.kt",
+            """
 
             import java.io.File
 
@@ -202,20 +222,22 @@ class KotlinDslPluginTest : AbstractPluginTest() {
                 }
             }
 
-        """)
+            """
+        )
 
         assertThat(
             outputOf("test", "-i"),
-            containsString("Plugin Using Embedded Kotlin "))
+            containsString("Plugin Using Embedded Kotlin ")
+        )
     }
 
     @Test
-    @ToBeFixedForInstantExecution
     fun `sam-with-receiver kotlin compiler plugin is applied to production code`() {
-
         withKotlinDslPlugin()
 
-        withFile("src/main/kotlin/code.kt", """
+        withFile(
+            "src/main/kotlin/code.kt",
+            """
 
             import org.gradle.api.Plugin
             import org.gradle.api.Project
@@ -231,7 +253,8 @@ class KotlinDslPluginTest : AbstractPluginTest() {
                 }
             }
 
-        """)
+            """
+        )
 
         val result = build("classes")
 
@@ -239,8 +262,7 @@ class KotlinDslPluginTest : AbstractPluginTest() {
     }
 
     @Test
-    @ToBeFixedForInstantExecution(because = "Kotlin Gradle Plugin")
-    fun `by default experimental Kotlin compiler features are enabled and a warning is issued`() {
+    fun `can use SAM conversions for Kotlin functions without warnings`() {
 
         withBuildExercisingSamConversionForKotlinFunctions()
 
@@ -248,70 +270,63 @@ class KotlinDslPluginTest : AbstractPluginTest() {
 
             assertThat(
                 output.also(::println),
-                containsMultiLineString("""
+                containsMultiLineString(
+                    """
                     STRING
                     foo
                     bar
-                """)
+                    """
+                )
             )
 
             assertThat(
                 output,
-                not(containsString(KotlinCompilerArguments.samConversionForKotlinFunctions))
-            )
-
-            assertThat(
-                output,
-                containsString(experimentalWarningFor(":buildSrc"))
+                not(containsString(samConversionForKotlinFunctions))
             )
         }
     }
 
     @Test
-    @ToBeFixedForInstantExecution(because = "Kotlin Gradle Plugin")
-    fun `can explicitly disable experimental Kotlin compiler features warning`() {
+    fun `nags user about experimentalWarning deprecation`() {
 
         withBuildExercisingSamConversionForKotlinFunctions(
             "kotlinDslPluginOptions.experimentalWarning.set(false)"
+        )
+
+        executer.expectDeprecationWarning(
+            "The KotlinDslPluginOptions.experimentalWarning property has been deprecated. " +
+                "This is scheduled to be removed in Gradle 8.0. " +
+                "Flag has no effect since `kotlin-dsl` no longer relies on experimental features."
         )
 
         build("test").apply {
 
             assertThat(
                 output.also(::println),
-                containsMultiLineString("""
+                containsMultiLineString(
+                    """
                     STRING
                     foo
                     bar
-                """)
+                    """
+                )
             )
 
             assertThat(
                 output,
-                not(containsString(KotlinCompilerArguments.samConversionForKotlinFunctions))
-            )
-
-            assertThat(
-                output,
-                not(containsString(experimentalWarningFor(":buildSrc")))
+                not(containsString(samConversionForKotlinFunctions))
             )
         }
     }
-
-    private
-    fun experimentalWarningFor(projectPath: String) =
-        kotlinDslPluginExperimentalWarning(
-            "project '$projectPath'",
-            DocumentationRegistry().getDocumentationFor("kotlin_dsl", "sec:kotlin-dsl_plugin")
-                .substringBefore("docs.gradle.org") // Dropping the Gradle Version
-        )
 
     private
     fun withBuildExercisingSamConversionForKotlinFunctions(buildSrcScript: String = "") {
 
         withDefaultSettingsIn("buildSrc")
 
-        withBuildScriptIn("buildSrc", """
+        withBuildScriptIn(
+            "buildSrc",
+            """
 
             plugins {
                 `kotlin-dsl`
@@ -320,13 +335,16 @@ class KotlinDslPluginTest : AbstractPluginTest() {
             $repositoriesBlock
 
             $buildSrcScript
-        """)
+            """
+        )
 
-        withFile("buildSrc/src/main/kotlin/my.kt", """
+        withFile(
+            "buildSrc/src/main/kotlin/my.kt",
+            """
             package my
 
             // Action<T> is a SAM with receiver
-            fun <T> applyActionTo(value: T, action: org.gradle.api.Action<T>) = action.execute(value)
+            fun <T : Any> applyActionTo(value: T, action: org.gradle.api.Action<T>) = action.execute(value)
 
             // NamedDomainObjectFactory<T> is a regular SAM
             fun <T> create(name: String, factory: org.gradle.api.NamedDomainObjectFactory<T>): T = factory.create(name)
@@ -344,18 +362,25 @@ class KotlinDslPluginTest : AbstractPluginTest() {
                     println(toLowerCase())
                 }
             }
-        """)
+            """
+        )
 
-        withBuildScript("""
+        withBuildScript(
+            """
 
             task("test") {
                 doLast { my.test() }
             }
 
-         """)
+            """
+        )
     }
 
     private
     fun outputOf(vararg arguments: String) =
         build(*arguments).output
 }
+
+
+private
+const val samConversionForKotlinFunctions = "-XXLanguage:+SamConversionForKotlinFunctions"

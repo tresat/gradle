@@ -16,7 +16,7 @@
 
 package org.gradle.api.publish.maven
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.integtests.fixtures.publish.maven.AbstractMavenPublishIntegTest
 import org.gradle.test.fixtures.file.TestFile
 import org.gradle.test.fixtures.maven.MavenFileModule
@@ -24,7 +24,7 @@ import org.gradle.test.fixtures.maven.MavenFileRepository
 import org.spockframework.util.TextUtil
 import spock.lang.Issue
 
-import static org.gradle.util.TextUtil.normaliseFileSeparators
+import static org.gradle.util.internal.TextUtil.normaliseFileSeparators
 
 /**
  * Tests for bugfixes to maven publishing scenarios
@@ -259,7 +259,7 @@ subprojects {
         output.contains(":customPublish")
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     @Issue("https://github.com/gradle/gradle/issues/5136")
     void "doesn't publish if main artifact is missing"() {
         settingsFile << 'rootProject.name = "test"'
@@ -271,7 +271,7 @@ subprojects {
             version = "1.0"
 
             jar {
-                enabled = Boolean.valueOf(project.getProperty("jarEnabled"))
+                enabled = Boolean.parseBoolean(project.getProperty("jarEnabled"))
             }
 
             publishing {
@@ -307,7 +307,7 @@ subprojects {
         failure.assertHasCause("Artifact test-1.0.jar wasn't produced by this build.")
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     @Issue("https://github.com/gradle/gradle/issues/5136")
     void "doesn't publish stale files"() {
         MavenFileModule publishedModule
@@ -325,7 +325,7 @@ subprojects {
             }
 
             javadocJar {
-                enabled = Boolean.valueOf(project.getProperty("javadocEnabled"))
+                enabled = Boolean.parseBoolean(project.getProperty("javadocEnabled"))
             }
 
             publishing {

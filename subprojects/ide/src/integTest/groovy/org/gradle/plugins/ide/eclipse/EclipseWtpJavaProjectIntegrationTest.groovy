@@ -15,11 +15,11 @@
  */
 package org.gradle.plugins.ide.eclipse
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 
 class EclipseWtpJavaProjectIntegrationTest extends AbstractEclipseIntegrationSpec {
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "generates configuration files for a Java project"() {
         file('src/main/java').mkdirs()
         file('src/main/resources').mkdirs()
@@ -30,7 +30,7 @@ class EclipseWtpJavaProjectIntegrationTest extends AbstractEclipseIntegrationSpe
         """apply plugin: 'eclipse-wtp'
            apply plugin: 'java'
 
-           ${jcenterRepository()}
+           ${mavenCentralRepository()}
 
            sourceCompatibility = 1.6
 

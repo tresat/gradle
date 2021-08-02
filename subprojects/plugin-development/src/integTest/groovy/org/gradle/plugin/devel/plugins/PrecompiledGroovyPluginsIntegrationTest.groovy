@@ -16,9 +16,13 @@
 
 package org.gradle.plugin.devel.plugins
 
+
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
+import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
 import org.gradle.test.fixtures.file.TestFile
+import spock.lang.IgnoreIf
+import spock.lang.Issue
 
 class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
 
@@ -118,7 +122,7 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
             logger.lifecycle("hello from " + path)
         """
 
-        [buildFile, file("a/build.gradle"), file("b/build.gradle"), file("c/build.gradle") ].each { bf ->
+        [buildFile, file("a/build.gradle"), file("b/build.gradle"), file("c/build.gradle")].each { bf ->
             bf << """
                 plugins {
                     id 'foo'
@@ -160,7 +164,6 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         outputContains("baz.bar applied")
     }
 
-    @ToBeFixedForInstantExecution(because = "groovy precompiled scripts")
     def "can share precompiled plugin via a jar"() {
         given:
         def pluginJar = packagePrecompiledPlugin("foo.gradle")
@@ -208,13 +211,12 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         fails("help")
     }
 
-    @ToBeFixedForInstantExecution(because = "groovy precompiled scripts")
     def "can share multiple precompiled plugins via a jar"() {
         given:
         def pluginsJar = packagePrecompiledPlugins([
-                "foo.gradle": 'tasks.register("firstPluginTask") {}',
-                "bar.gradle": 'tasks.register("secondPluginTask") {}',
-                "fizz.buzz.foo-bar.gradle": 'tasks.register("thirdPluginTask") {}'
+            "foo.gradle": 'tasks.register("firstPluginTask") {}',
+            "bar.gradle": 'tasks.register("secondPluginTask") {}',
+            "fizz.buzz.foo-bar.gradle": 'tasks.register("thirdPluginTask") {}'
         ])
 
         when:
@@ -240,7 +242,6 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         succeeds("thirdPluginTask")
     }
 
-    @ToBeFixedForInstantExecution(because = "groovy precompiled scripts")
     def "can share precompiled plugin by publishing it"() {
         given:
         pluginWithSampleTask("plugin/src/main/groovy/plugins/foo.bar.my-plugin.gradle")
@@ -285,21 +286,25 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         succeeds(SAMPLE_TASK)
     }
 
-    @ToBeFixedForInstantExecution(because = "groovy precompiled scripts")
     def "can apply a precompiled settings plugin by id"() {
         given:
-        def pluginJar = packagePrecompiledPlugin("my-settings-plugin.settings.gradle", """
+        file("plugin/build.gradle") << """
+            plugins {
+                id 'groovy-gradle-plugin'
+            }
+        """
+        file("plugin/src/main/groovy/my-settings-plugin.settings.gradle") << """
             println("my-settings-plugin applied!")
-        """)
+        """
 
         when:
         settingsFile << """
-            buildscript {
-                dependencies {
-                    classpath(files("$pluginJar"))
-                }
+            pluginManagement {
+                includeBuild("plugin")
             }
-            apply plugin: 'my-settings-plugin'
+            plugins {
+                id("my-settings-plugin")
+            }
         """
 
         then:
@@ -307,34 +312,31 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         outputContains("my-settings-plugin applied!")
     }
 
-    @ToBeFixedForInstantExecution(because = "groovy precompiled scripts")
     def "precompiled settings plugin can use plugins block"() {
-        when:
-        def pluginJar = packagePrecompiledPlugin("base-settings-plugin.settings.gradle", """
-            println('base-settings-plugin applied!')
-        """)
-        def baseSettingsPluginJar = file('baseSettingsPlugin.jar')
-        file(pluginJar).renameTo(baseSettingsPluginJar)
-
-        pluginJar = packagePrecompiledPlugin("my-settings-plugin.settings.gradle", """
-            buildscript {
-                dependencies {
-                    classpath(files('$baseSettingsPluginJar.name'))
-                }
+        given:
+        file("plugin/build.gradle") << """
+            plugins {
+                id 'groovy-gradle-plugin'
             }
+        """
+        file("plugin/src/main/groovy/base-settings-plugin.settings.gradle") << """
+            println('base-settings-plugin applied!')
+        """
+        file("plugin/src/main/groovy/my-settings-plugin.settings.gradle") << """
             plugins {
                 id 'base-settings-plugin'
             }
             println('my-settings-plugin applied!')
-        """)
+        """
 
+        when:
         settingsFile << """
-            buildscript {
-                dependencies {
-                    classpath(files('$pluginJar', '$baseSettingsPluginJar.name'))
-                }
+            pluginManagement {
+                includeBuild("plugin")
             }
-            apply plugin: 'my-settings-plugin'
+            plugins {
+                id("my-settings-plugin")
+            }
         """
 
         then:
@@ -343,7 +345,86 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         outputContains('my-settings-plugin applied!')
     }
 
-    @ToBeFixedForInstantExecution(because = "groovy precompiled scripts")
+    @Issue("https://github.com/gradle/gradle/issues/15416")
+    def "precompiled settings plugin can use pluginManagement block"() {
+        when:
+        file("plugin/build.gradle") << """
+            plugins {
+                id 'groovy-gradle-plugin'
+            }
+        """
+        file("plugin/src/main/groovy/my-settings-plugin.settings.gradle") << """
+            pluginManagement {
+                repositories {
+                    println('pluginManagement block executed')
+                    mavenCentral()
+                }
+            }
+            println('my-settings-plugin applied!')
+        """
+
+        settingsFile << """
+            pluginManagement {
+                includeBuild("plugin")
+            }
+            plugins {
+                id("my-settings-plugin")
+            }
+        """
+
+        then:
+        succeeds('help')
+        outputContains('pluginManagement block executed')
+        outputContains('my-settings-plugin applied!')
+    }
+
+    def "precompiled project plugin can not use pluginManagement block"() {
+        when:
+        enablePrecompiledPluginsInBuildSrc()
+        file("buildSrc/src/main/groovy/plugins/foo.gradle") << """
+            pluginManagement {
+                repositories {
+                    mavenCentral()
+                }
+            }
+            println("foo project plugin applied")
+        """
+
+        then:
+        fails("help")
+        failureCauseContains("Only Settings scripts can contain a pluginManagement {} block.")
+    }
+
+    def "precompiled project plugin can not use buildscript block"() {
+        when:
+        enablePrecompiledPluginsInBuildSrc()
+        file("buildSrc/src/main/groovy/plugins/foo.gradle") << """
+            buildscript {
+                dependencies {}
+            }
+            println("foo project plugin applied")
+        """
+
+        then:
+        fails("help")
+        failureCauseContains("The `buildscript` block is not supported in Groovy script plugins. Use the `plugins` block or project level dependencies instead.")
+    }
+
+    def "precompiled settings plugin can not use buildscript block"() {
+        when:
+        enablePrecompiledPluginsInBuildSrc()
+        file("buildSrc/src/main/groovy/plugins/foo.settings.gradle") << """
+            buildscript {
+                dependencies {}
+            }
+            println("foo settings plugin applied")
+        """
+
+        then:
+        fails('help')
+        failureCauseContains("The `buildscript` block is not supported in Groovy script plugins. Use the `plugins` block or project level dependencies instead.")
+    }
+
     def "can apply a precompiled init plugin"() {
         given:
         def pluginJar = packagePrecompiledPlugin("my-init-plugin.init.gradle", """
@@ -392,6 +473,22 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         buildFile << """
             plugins {
                 id 'my-plugin'
+            }
+        """
+
+        then:
+        succeeds(SAMPLE_TASK)
+    }
+
+    @Issue("https://github.com/gradle/gradle/issues/16459")
+    def "can have .gradle substring within plugin id"() {
+        when:
+        enablePrecompiledPluginsInBuildSrc()
+        pluginWithSampleTask("buildSrc/src/main/groovy/dev.gradlefoo.some-plugin.gradle")
+
+        buildFile << """
+            plugins {
+                id 'dev.gradlefoo.some-plugin'
             }
         """
 
@@ -552,7 +649,7 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
             plugins {
                 id 'groovy-gradle-plugin'
             }
-            ${jcenterRepository()}
+            ${mavenCentralRepository()}
 
             dependencies {
                 implementation("org.apache.commons:commons-lang3:3.4")
@@ -694,7 +791,8 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         outputContains("from custom task")
     }
 
-    @ToBeFixedForInstantExecution(because = "groovy precompiled scripts")
+    @IgnoreIf({ GradleContextualExecuter.embedded })
+    // Requires a Gradle distribution on the test-under-test classpath, but gradleApi() does not offer the full distribution
     def "can write tests for precompiled script plugins"() {
         given:
         pluginWithSampleTask("src/main/groovy/test-plugin.gradle")
@@ -728,7 +826,7 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
             }
             ${mavenCentralRepository()}
             dependencies {
-                testImplementation 'org.spockframework:spock-core:1.3-groovy-2.5'
+                testImplementation 'org.spockframework:spock-core:2.0-groovy-3.0'
             }
         """
 
@@ -803,7 +901,7 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         outputContains('content changed')
     }
 
-    @ToBeFixedForInstantExecution(because = "groovy precompiled scripts")
+    @ToBeFixedForConfigurationCache(because = "groovy precompiled scripts")
     def "a change in project sources invalidates build cache"() {
         given:
         def cacheDir = createDir("cache-dir")
@@ -881,7 +979,7 @@ class PrecompiledGroovyPluginsIntegrationTest extends AbstractIntegrationSpec {
         """)
 
         executer.inDirectory(pluginsDir).withTasks("jar").run()
-                .assertNotOutput("No valid plugin descriptors were found in META-INF/gradle-plugins")
+            .assertNotOutput("No valid plugin descriptors were found in META-INF/gradle-plugins")
         def pluginJar = pluginsDir.file("build/libs/plugins.jar").assertExists()
         def movedJar = file('plugins.jar')
         pluginJar.renameTo(movedJar)

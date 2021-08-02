@@ -17,7 +17,7 @@ package org.gradle.api
 
 import org.gradle.api.plugins.AppliedPlugin
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.test.fixtures.plugin.PluginBuilder
 import spock.lang.Issue
 import spock.lang.Unroll
@@ -61,7 +61,7 @@ class PluginDetectionIntegrationTest extends AbstractIntegrationSpec {
         detectedBy << JAVA_PLUGIN_IDS + JAVA_PLUGIN_IDS.reverse()
     }
 
-    @ToBeFixedForInstantExecution(because = "Gradle.buildFinished")
+    @ToBeFixedForConfigurationCache(because = "Gradle.buildFinished")
     def "unqualified ids from classpath are detectable"() {
         def pluginBuilder = new PluginBuilder(testDirectory)
         pluginBuilder.addPlugin("")
@@ -105,7 +105,7 @@ class PluginDetectionIntegrationTest extends AbstractIntegrationSpec {
 
     def "plugin manager with id is fired after the plugin is applied for imperative plugins"() {
         when:
-        buildFile << """
+        buildFile """
             pluginManager.withPlugin("java") {
               assert tasks.jar
             }
@@ -139,7 +139,7 @@ class PluginDetectionIntegrationTest extends AbstractIntegrationSpec {
 
         file("buildSrc/src/main/resources/META-INF/gradle-plugins/my.properties") << "implementation-class=MyPlugin"
 
-        buildFile << """
+        buildFile """
             import org.gradle.model.internal.core.ModelPath
 
             pluginManager.withPlugin("my") {
@@ -169,7 +169,7 @@ class PluginDetectionIntegrationTest extends AbstractIntegrationSpec {
 
         file("buildSrc/src/main/resources/META-INF/gradle-plugins/my.properties") << "implementation-class=Rules"
 
-        buildFile << """
+        buildFile """
             import org.gradle.model.internal.core.ModelPath
 
             pluginManager.withPlugin("my") {

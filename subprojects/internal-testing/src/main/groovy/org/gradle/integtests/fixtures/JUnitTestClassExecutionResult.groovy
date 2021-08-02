@@ -18,8 +18,8 @@ package org.gradle.integtests.fixtures
 
 import groovy.util.slurpersupport.GPathResult
 import groovy.util.slurpersupport.NodeChild
-import org.hamcrest.Matcher
 import org.hamcrest.CoreMatchers
+import org.hamcrest.Matcher
 import org.junit.Assert
 
 import static org.gradle.integtests.fixtures.DefaultTestExecutionResult.removeParentheses
@@ -30,19 +30,17 @@ class JUnitTestClassExecutionResult implements TestClassExecutionResult {
     String testClassName
     boolean checked
     String testClassDisplayName
-    boolean hasDisplayNameAnnotation
     TestResultOutputAssociation outputAssociation
 
-    JUnitTestClassExecutionResult(GPathResult testClassNode, String testClassName, String testClassDisplayName, boolean hasDisplayNameAnnotation, TestResultOutputAssociation outputAssociation) {
+    JUnitTestClassExecutionResult(GPathResult testClassNode, String testClassName, String testClassDisplayName, TestResultOutputAssociation outputAssociation) {
         this.outputAssociation = outputAssociation
         this.testClassNode = testClassNode
         this.testClassName = testClassName
         this.testClassDisplayName = testClassDisplayName
-        this.hasDisplayNameAnnotation = hasDisplayNameAnnotation
     }
 
-    JUnitTestClassExecutionResult(String content, String testClassName, String testClassDisplayName, boolean hasDisplayNameAnnotation, TestResultOutputAssociation outputAssociation) {
-        this(new XmlSlurper().parse(new StringReader(content)), testClassName, testClassDisplayName, hasDisplayNameAnnotation, outputAssociation)
+    JUnitTestClassExecutionResult(String content, String testClassName, String testClassDisplayName, TestResultOutputAssociation outputAssociation) {
+        this(new XmlSlurper().parse(new StringReader(content)), testClassName, testClassDisplayName, outputAssociation)
     }
 
     TestClassExecutionResult assertTestsExecuted(String... testNames) {
@@ -70,6 +68,10 @@ class JUnitTestClassExecutionResult implements TestClassExecutionResult {
 
     int getTestCount() {
         return testClassNode.@tests.toInteger()
+    }
+
+    int getTestCasesCount() {
+        return testClassNode.testcase.size()
     }
 
     TestClassExecutionResult withResult(Closure action) {
@@ -205,15 +207,9 @@ class JUnitTestClassExecutionResult implements TestClassExecutionResult {
     }
 
     private def findTests() {
-        String className
-        if(hasDisplayNameAnnotation) {
-            className = testClassDisplayName
-        } else {
-            className = testClassName
-        }
         if (!checked) {
             Assert.assertThat(testClassNode.name(), CoreMatchers.equalTo('testsuite'))
-            Assert.assertThat(testClassNode.@name.text(), CoreMatchers.equalTo(className))
+            Assert.assertThat(testClassNode.@name.text(), CoreMatchers.equalTo(testClassDisplayName))
             Assert.assertThat(testClassNode.@tests.text(), CoreMatchers.not(CoreMatchers.equalTo('')))
             Assert.assertThat(testClassNode.@skipped.text(), CoreMatchers.not(CoreMatchers.equalTo('')))
             Assert.assertThat(testClassNode.@failures.text(), CoreMatchers.not(CoreMatchers.equalTo('')))
@@ -231,13 +227,10 @@ class JUnitTestClassExecutionResult implements TestClassExecutionResult {
                     Assert.assertThat(failure.@type.text(), CoreMatchers.not(CoreMatchers.equalTo('')))
                     Assert.assertThat(failure.text(), CoreMatchers.not(CoreMatchers.equalTo('')))
                 }
-                def matcher = CoreMatchers.equalTo(outputAssociation == TestResultOutputAssociation.WITH_TESTCASE ? 1 : 0)
-                Assert.assertThat(node.'system-err'.size(), matcher)
-                Assert.assertThat(node.'system-out'.size(), matcher)
-            }
-            if (outputAssociation == TestResultOutputAssociation.WITH_SUITE) {
-                Assert.assertThat(testClassNode.'system-out'.size(), CoreMatchers.equalTo(1))
-                Assert.assertThat(testClassNode.'system-err'.size(), CoreMatchers.equalTo(1))
+                if (outputAssociation == TestResultOutputAssociation.WITH_SUITE) {
+                    Assert.assertThat(node.'system-out'.size(), CoreMatchers.equalTo(0))
+                    Assert.assertThat(node.'system-err'.size(), CoreMatchers.equalTo(0))
+                }
             }
             checked = true
         }

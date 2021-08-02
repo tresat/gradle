@@ -27,11 +27,8 @@ import spock.lang.IgnoreIf
 import spock.lang.Issue
 import spock.lang.Unroll
 
-import static org.gradle.testing.fixture.JUnitCoverage.JUNIT_4_LATEST
-import static org.gradle.testing.fixture.JUnitCoverage.JUNIT_VINTAGE_JUPITER
-import static org.hamcrest.CoreMatchers.containsString
+import static org.gradle.testing.fixture.JUnitCoverage.*
 import static org.hamcrest.CoreMatchers.equalTo
-
 /**
  * General tests for the JVM testing infrastructure that don't deserve their own test class.
  */
@@ -260,6 +257,8 @@ class TestingIntegrationTest extends JUnitMultiVersionIntegrationSpec {
         result.assertTestClassesExecuted("TestCaseExtendsAbstractClass")
     }
 
+    @Requires(TestPrecondition.JDK15_OR_EARLIER) // java.lang.IncompatibleClassChangeError: class com.google.common.collect.ImmutableCollection$EmptyImmutableCollection
+                                                 // overrides final method com.google.common.collect.ImmutableCollection.toArray()[Ljava/lang/Object;
     @Issue("https://issues.gradle.org/browse/GRADLE-2962")
     def "incompatible user versions of classes that we also use don't affect test execution"() {
 
@@ -347,7 +346,7 @@ class TestingIntegrationTest extends JUnitMultiVersionIntegrationSpec {
             public class TestCase {
                 @Test
                 public void test() {
-                    assertTrue(Double.valueOf(System.getProperty("java.specification.version")) >= 1.8);
+                    assertTrue(Double.parseDouble(System.getProperty("java.specification.version")) >= 1.8);
                 }
             }
         """
@@ -541,65 +540,43 @@ class TestingIntegrationTest extends JUnitMultiVersionIntegrationSpec {
             .testFailed("testFailingGetMessage", equalTo('Could not determine failure message for exception of type UsefulNPETest$1: java.lang.RuntimeException'))
     }
 
-    @IgnoreIf({ GradleContextualExecuter.embedded })
-    def "non-deserializable suppressed exceptions are preserved"() {
+    def "test thread name is reset after test execution"() {
+        when:
+        ignoreWhenJUnitPlatform()
         buildFile << """
-            apply plugin:'java-library'
+            apply plugin: "java"
             ${mavenCentralRepository()}
             dependencies {
-                testImplementation 'org.junit.jupiter:junit-jupiter-api:5.6.1'
-                testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine'
+                testImplementation "junit:junit:${NEWEST}"
             }
-
-            test {
-                useJUnitPlatform()
-            }
+            test { useJUnit() }
         """
 
-        file('src/test/java/TestCaseWithThrowingBeforeAllAndAfterAllCallbacks.java') << """
-            import org.junit.jupiter.api.Test;
-            import org.junit.jupiter.api.extension.AfterAllCallback;
-            import org.junit.jupiter.api.extension.BeforeAllCallback;
-            import org.junit.jupiter.api.extension.ExtendWith;
-            import org.junit.jupiter.api.extension.ExtensionContext;
-
-            @ExtendWith(ThrowingBeforeAllCallback.class)
-            @ExtendWith(ThrowingAfterAllCallback.class)
-            public class TestCaseWithThrowingBeforeAllAndAfterAllCallbacks {
-
-                @Test
-                void test() {
-                }
-
-            }
-
-            class ThrowingBeforeAllCallback implements BeforeAllCallback {
-                @Override
-                public void beforeAll(ExtensionContext context) {
-                    throw new IllegalStateException("beforeAll callback");
-                }
-            }
-
-            class ThrowingAfterAllCallback implements AfterAllCallback {
-                @Override
-                public void afterAll(ExtensionContext context) {
-                    throw new CustomException("afterAll callback");
-                }
-            }
-
-            class CustomException extends IllegalStateException {
-                public CustomException(String message) { super(message); }
-            }
-        """
-
-        when:
-        fails 'test'
+        and:
+        file("src/test/java/SomeTest.java") << threadNameCheckTest("SomeTest")
+        file("src/test/java/AnotherTest.java") << threadNameCheckTest("AnotherTest")
 
         then:
+        succeeds "clean", "test"
+
+        and:
         def result = new DefaultTestExecutionResult(testDirectory)
-        result.testClass("TestCaseWithThrowingBeforeAllAndAfterAllCallbacks")
-            .testFailed("initializationError", equalTo('java.lang.IllegalStateException: beforeAll callback'))
-        result.testClass("TestCaseWithThrowingBeforeAllAndAfterAllCallbacks")
-            .testFailed("initializationError", containsString('Suppressed: CustomException: afterAll callback'))
+        result.testClass("SomeTest").assertTestPassed("checkThreadName")
+        result.testClass("AnotherTest").assertTestPassed("checkThreadName")
+    }
+
+    private static String threadNameCheckTest(String className) {
+        return """
+            import org.junit.Test;
+            import static org.junit.Assert.assertEquals;
+
+            public class ${className} {
+                @Test
+                public void checkThreadName() {
+                    assertEquals("Test worker", Thread.currentThread().getName());
+                    Thread.currentThread().setName(getClass().getSimpleName());
+                }
+            }
+        """
     }
 }

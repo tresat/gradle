@@ -15,11 +15,11 @@
  */
 package org.gradle.plugins.ide.eclipse
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 
 class EclipseCustomSourceAndJavadocLocationIntegrationTest extends AbstractEclipseIntegrationSpec {
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "custom source and javadoc location"() {
         setup:
         String customSourcePath = temporaryFolder.file('guava-custom-source.jar').absolutePath.replace('\\', '\\\\')
@@ -29,7 +29,7 @@ class EclipseCustomSourceAndJavadocLocationIntegrationTest extends AbstractEclip
             apply plugin: 'java'
             apply plugin: 'eclipse'
 
-            ${jcenterRepository()}
+            ${mavenCentralRepository()}
 
             dependencies {
                 implementation 'com.google.guava:guava:18.0'

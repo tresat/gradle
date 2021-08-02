@@ -17,7 +17,7 @@
 package org.gradle.language.cpp
 
 import org.gradle.integtests.fixtures.DirectoryBuildCacheFixture
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.language.AbstractNativePreCompiledHeaderIntegrationTest
 import org.gradle.nativeplatform.fixtures.app.CppHelloWorldApp
 import org.gradle.nativeplatform.fixtures.app.IncrementalHelloWorldApp
@@ -31,7 +31,7 @@ class CppPreCompiledHeaderSourcesIntegrationTest extends AbstractNativePreCompil
         return new CppHelloWorldApp()
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "caching is disabled if precompiled headers are configured" () {
         writeStandardSourceFiles()
 
@@ -43,13 +43,13 @@ class CppPreCompiledHeaderSourcesIntegrationTest extends AbstractNativePreCompil
         libAndPCHTasksExecuted()
         pchCompiledOnceForEach([ PCHHeaderDirName ])
         output.contains "Caching disabled for task ':compileHelloSharedLibraryCppPreCompiledHeader' because:\n" +
-            "  Caching has not been enabled for the task"
+            "  Not made cacheable, yet"
         output.contains "Caching disabled for task ':compileHelloSharedLibraryHelloCpp' because:\n" +
             "  'Pre-compiled headers are used' satisfied"
     }
 
     @Requires(TestPrecondition.MAC_OS_X)
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "can compile and link C++ code with precompiled headers using standard macOS framework" () {
         given:
         writeStandardSourceFiles()

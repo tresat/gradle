@@ -16,7 +16,7 @@
 package org.gradle.api
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.gradle.integtests.fixtures.executer.ArtifactBuilder
 import org.gradle.integtests.fixtures.timeout.IntegrationTestTimeout
 import org.gradle.test.fixtures.file.TestFile
@@ -241,13 +241,13 @@ initscript {
     }
 
     @Issue("https://github.com/gradle/gradle-native/issues/962")
-    @UnsupportedWithInstantExecution
+    @UnsupportedWithConfigurationCache
     def "init script can register all projects hook from within the projects loaded callback of build listener"() {
         given:
         executer.requireOwnGradleUserHomeDir()
 
         and:
-        file("buildSrc").mkdir()
+        file("buildSrc/settings.gradle").createFile()
 
         and:
         executer.gradleUserHomeDir.file('init.d/a.gradle') << '''
@@ -269,6 +269,19 @@ initscript {
         then:
         output.contains("Project 'buildSrc'")
         output.contains("Project 'root'")
+    }
+
+    @Issue("https://github.com/gradle/gradle/issues/17555")
+    def "init script file is a dotfile"() {
+        def initScript = file('.empty')
+        initScript << 'println "greetings from empty init script"'
+        executer.withArguments('--init-script', initScript.absolutePath)
+
+        when:
+        run()
+
+        then:
+        output.contains("greetings from empty init script")
     }
 
     private def createExternalJar() {

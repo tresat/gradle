@@ -41,7 +41,6 @@ import org.gradle.api.internal.attributes.AttributesSchemaInternal;
 import org.gradle.api.internal.attributes.ImmutableAttributes;
 import org.gradle.api.internal.attributes.ImmutableAttributesFactory;
 import org.gradle.api.specs.Spec;
-import org.gradle.internal.Pair;
 import org.gradle.internal.component.model.ComponentResolveMetadata;
 import org.gradle.internal.component.model.ConfigurationMetadata;
 import org.gradle.internal.component.model.DependencyMetadata;
@@ -56,7 +55,9 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.Deque;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Global resolution state.
@@ -65,7 +66,7 @@ class ResolveState implements ComponentStateFactory<ComponentState> {
     private final Spec<? super DependencyMetadata> edgeFilter;
     private final Map<ModuleIdentifier, ModuleResolveState> modules;
     private final Map<ResolvedConfigurationIdentifier, NodeState> nodes;
-    private final Map<Pair<ComponentSelector, Boolean>, SelectorState> selectors;
+    private final Map<SelectorCacheKey, SelectorState> selectors;
     private final RootNode root;
     private final IdGenerator<Long> idGenerator;
     private final DependencyToComponentIdResolver idResolver;
@@ -86,6 +87,7 @@ class ResolveState implements ComponentStateFactory<ComponentState> {
     private final ResolveOptimizations resolveOptimizations;
     private final Map<VersionConstraint, ResolvedVersionConstraint> resolvedVersionConstraints = Maps.newHashMap();
     private final AttributeDesugaring attributeDesugaring;
+    private final List<? extends DependencyMetadata> generatedRootDependencies;
 
     public ResolveState(IdGenerator<Long> idGenerator,
                         ComponentResolveResult rootResult,
@@ -103,7 +105,8 @@ class ResolveState implements ComponentStateFactory<ComponentState> {
                         VersionParser versionParser,
                         ModuleConflictResolver<ComponentState> conflictResolver,
                         int graphSize,
-                        ConflictResolution conflictResolution) {
+                        ConflictResolution conflictResolution,
+                        List<? extends DependencyMetadata> generatedRootDependencies) {
         this.idGenerator = idGenerator;
         this.idResolver = idResolver;
         this.metaDataResolver = metaDataResolver;
@@ -121,6 +124,7 @@ class ResolveState implements ComponentStateFactory<ComponentState> {
         this.selectors = new LinkedHashMap<>(5 * graphSize / 2);
         this.queue = new ArrayDeque<>(graphSize);
         this.conflictResolution = conflictResolution;
+        this.generatedRootDependencies = generatedRootDependencies;
         this.resolveOptimizations = new ResolveOptimizations();
         this.attributeDesugaring = new AttributeDesugaring(attributesFactory);
         // Create root module
@@ -156,6 +160,10 @@ class ResolveState implements ComponentStateFactory<ComponentState> {
         return modules.computeIfAbsent(id, mid -> new ModuleResolveState(idGenerator, id, metaDataResolver, attributesFactory, versionComparator, versionParser, selectorStateResolver, resolveOptimizations, rootModule, conflictResolution));
     }
 
+    List<? extends DependencyMetadata> getGeneratedRootDependencies() {
+        return generatedRootDependencies;
+    }
+
     @Override
     public ComponentState getRevision(ComponentIdentifier componentIdentifier, ModuleVersionIdentifier id, ComponentResolveMetadata metadata) {
         ComponentState componentState = getModule(id.getModule()).getVersion(id, componentIdentifier);
@@ -179,7 +187,8 @@ class ResolveState implements ComponentStateFactory<ComponentState> {
     }
 
     public SelectorState getSelector(DependencyState dependencyState, boolean ignoreVersion) {
-        SelectorState selectorState = selectors.computeIfAbsent(Pair.of(dependencyState.getRequested(), ignoreVersion), req -> {
+        boolean isVirtualPlatformEdge = dependencyState.getDependency() instanceof LenientPlatformDependencyMetadata;
+        SelectorState selectorState = selectors.computeIfAbsent(new SelectorCacheKey(dependencyState.getRequested(), ignoreVersion, isVirtualPlatformEdge), req -> {
             ModuleIdentifier moduleIdentifier = dependencyState.getModuleIdentifier();
             return new SelectorState(idGenerator.generateId(), dependencyState, idResolver, this, moduleIdentifier, ignoreVersion);
         });
@@ -276,6 +285,37 @@ class ResolveState implements ComponentStateFactory<ComponentState> {
 
     ResolveOptimizations getResolveOptimizations() {
         return resolveOptimizations;
+    }
+
+    private static class SelectorCacheKey {
+        private final ComponentSelector componentSelector;
+        private final boolean ignoreVersion;
+        private final boolean virtualPlatformEdge;
+
+        private SelectorCacheKey(ComponentSelector componentSelector, boolean ignoreVersion, boolean virtualPlatformEdge) {
+            this.componentSelector = componentSelector;
+            this.ignoreVersion = ignoreVersion;
+            this.virtualPlatformEdge = virtualPlatformEdge;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            SelectorCacheKey that = (SelectorCacheKey) o;
+            return ignoreVersion == that.ignoreVersion &&
+                virtualPlatformEdge == that.virtualPlatformEdge &&
+                componentSelector.equals(that.componentSelector);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(componentSelector, ignoreVersion, virtualPlatformEdge);
+        }
     }
 
 }

@@ -19,17 +19,17 @@ package org.gradle.internal.fingerprint.impl;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterables;
 import org.gradle.internal.fingerprint.CurrentFileCollectionFingerprint;
+import org.gradle.internal.fingerprint.FileCollectionFingerprint;
 import org.gradle.internal.fingerprint.FileSystemLocationFingerprint;
 import org.gradle.internal.fingerprint.FingerprintHashingStrategy;
 import org.gradle.internal.fingerprint.FingerprintingStrategy;
 import org.gradle.internal.hash.HashCode;
 import org.gradle.internal.hash.Hasher;
 import org.gradle.internal.hash.Hashing;
-import org.gradle.internal.snapshot.CompleteDirectorySnapshot;
-import org.gradle.internal.snapshot.CompleteFileSystemLocationSnapshot;
 import org.gradle.internal.snapshot.FileSystemSnapshot;
-import org.gradle.internal.snapshot.FileSystemSnapshotVisitor;
+import org.gradle.internal.snapshot.SnapshotUtil;
 
+import javax.annotation.Nullable;
 import java.util.Map;
 
 public class DefaultCurrentFileCollectionFingerprint implements CurrentFileCollectionFingerprint {
@@ -37,45 +37,49 @@ public class DefaultCurrentFileCollectionFingerprint implements CurrentFileColle
     private final Map<String, FileSystemLocationFingerprint> fingerprints;
     private final FingerprintHashingStrategy hashingStrategy;
     private final String identifier;
-    private final Iterable<? extends FileSystemSnapshot> roots;
+    private final FileSystemSnapshot roots;
     private final ImmutableMultimap<String, HashCode> rootHashes;
+    private final HashCode strategyConfigurationHash;
     private HashCode hash;
 
-    public static CurrentFileCollectionFingerprint from(Iterable<? extends FileSystemSnapshot> roots, FingerprintingStrategy strategy) {
-        if (Iterables.isEmpty(roots)) {
+    public static CurrentFileCollectionFingerprint from(FileSystemSnapshot roots, FingerprintingStrategy strategy, @Nullable  FileCollectionFingerprint candidate) {
+        if (roots == FileSystemSnapshot.EMPTY) {
             return strategy.getEmptyFingerprint();
         }
-        Map<String, FileSystemLocationFingerprint> fingerprints = strategy.collectFingerprints(roots);
+
+        ImmutableMultimap<String, HashCode> rootHashes = SnapshotUtil.getRootHashes(roots);
+        Map<String, FileSystemLocationFingerprint> fingerprints;
+        if (candidate != null
+            && candidate.getStrategyConfigurationHash().equals(strategy.getConfigurationHash())
+            && equalRootHashes(candidate.getRootHashes(), rootHashes)
+        ) {
+            fingerprints = candidate.getFingerprints();
+        } else {
+            fingerprints = strategy.collectFingerprints(roots);
+        }
         if (fingerprints.isEmpty()) {
             return strategy.getEmptyFingerprint();
         }
-        return new DefaultCurrentFileCollectionFingerprint(fingerprints, strategy.getHashingStrategy(), strategy.getIdentifier(), roots);
+        return new DefaultCurrentFileCollectionFingerprint(fingerprints, roots, rootHashes, strategy);
     }
 
-    private DefaultCurrentFileCollectionFingerprint(Map<String, FileSystemLocationFingerprint> fingerprints, FingerprintHashingStrategy hashingStrategy, String identifier, Iterable<? extends FileSystemSnapshot> roots) {
+    private static boolean equalRootHashes(ImmutableMultimap<String, HashCode> first, ImmutableMultimap<String, HashCode> second) {
+        // We cannot use `first.equals(second)`, since the order of the root hashes matters
+        return Iterables.elementsEqual(first.entries(), second.entries());
+    }
+
+    private DefaultCurrentFileCollectionFingerprint(
+        Map<String, FileSystemLocationFingerprint> fingerprints,
+        FileSystemSnapshot roots,
+        ImmutableMultimap<String, HashCode> rootHashes,
+        FingerprintingStrategy strategy
+    ) {
         this.fingerprints = fingerprints;
-        this.hashingStrategy = hashingStrategy;
-        this.identifier = identifier;
+        this.identifier = strategy.getIdentifier();
+        this.hashingStrategy = strategy.getHashingStrategy();
+        this.strategyConfigurationHash = strategy.getConfigurationHash();
         this.roots = roots;
-
-        final ImmutableMultimap.Builder<String, HashCode> builder = ImmutableMultimap.builder();
-        accept(new FileSystemSnapshotVisitor() {
-            @Override
-            public boolean preVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
-                builder.put(directorySnapshot.getAbsolutePath(), directorySnapshot.getHash());
-                return false;
-            }
-
-            @Override
-            public void visitFile(CompleteFileSystemLocationSnapshot fileSnapshot) {
-                builder.put(fileSnapshot.getAbsolutePath(), fileSnapshot.getHash());
-            }
-
-            @Override
-            public void postVisitDirectory(CompleteDirectorySnapshot directorySnapshot) {
-            }
-        });
-        this.rootHashes = builder.build();
+        this.rootHashes = rootHashes;
     }
 
     @Override
@@ -110,13 +114,13 @@ public class DefaultCurrentFileCollectionFingerprint implements CurrentFileColle
     }
 
     @Override
-    public void accept(FileSystemSnapshotVisitor visitor) {
-        if (roots == null) {
-            throw new UnsupportedOperationException("Roots not available.");
-        }
-        for (FileSystemSnapshot root : roots) {
-            root.accept(visitor);
-        }
+    public FileSystemSnapshot getSnapshot() {
+        return roots;
+    }
+
+    @Override
+    public HashCode getStrategyConfigurationHash() {
+        return strategyConfigurationHash;
     }
 
     @Override

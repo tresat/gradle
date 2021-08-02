@@ -18,7 +18,7 @@ package org.gradle.language.base
 
 import groovy.transform.NotYetImplemented
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.gradle.platform.base.ApplicationSpec
 import org.gradle.platform.base.ComponentSpec
 import org.gradle.platform.base.GeneralComponentSpec
@@ -26,7 +26,7 @@ import org.gradle.platform.base.LibrarySpec
 import org.gradle.platform.base.SourceComponentSpec
 import spock.lang.Unroll
 
-@UnsupportedWithInstantExecution(because = "software model")
+@UnsupportedWithConfigurationCache(because = "software model")
 class CustomComponentIntegrationTest extends AbstractIntegrationSpec {
     @Unroll
     def "can declare custom managed #componentSpecType"() {
@@ -232,50 +232,6 @@ class CustomComponentIntegrationTest extends AbstractIntegrationSpec {
 
         where:
         componentSpecType << [SourceComponentSpec, GeneralComponentSpec, LibrarySpec, ApplicationSpec]*.simpleName
-    }
-
-    def "can declare custom managed Jvm library component"() {
-        executer.expectDocumentedDeprecationWarning("The jvm-component plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. " +
-            "Consult the upgrading guide for further information: https://docs.gradle.org/current/userguide/upgrading_version_6.html#upgrading_jvm_plugins")
-        buildFile << """
-            apply plugin: "jvm-component"
-
-            @Managed
-            interface SampleLibrarySpec extends JvmLibrarySpec {
-                String getPublicData()
-                void setPublicData(String publicData)
-            }
-
-            class RegisterComponentRules extends RuleSource {
-                @ComponentType
-                void register(TypeBuilder<SampleLibrarySpec> builder) {
-                }
-            }
-            apply plugin: RegisterComponentRules
-
-            model {
-                components {
-                    jar(JvmLibrarySpec) {}
-                    sampleLib(SampleLibrarySpec) {}
-                }
-            }
-
-            class ValidateTaskRules extends RuleSource {
-                @Mutate
-                void createValidateTask(ModelMap<Task> tasks, ComponentSpecContainer components) {
-                    tasks.create("validate") {
-                        assert components*.name == ["jar", "sampleLib"]
-                        assert components.withType(ComponentSpec)*.name == ["jar", "sampleLib"]
-                        assert components.withType(JvmLibrarySpec)*.name == ["jar", "sampleLib"]
-                        assert components.withType(SampleLibrarySpec)*.name == ["sampleLib"]
-                    }
-                }
-            }
-            apply plugin: ValidateTaskRules
-        """
-
-        expect:
-        succeeds "validate"
     }
 
     def "presents a public view for custom unmanaged ComponentSpec"() {

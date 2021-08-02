@@ -19,7 +19,7 @@ package org.gradle.integtests
 import groovy.transform.NotYetImplemented
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 import org.gradle.integtests.fixtures.StaleOutputJavaProject
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.gradle.integtests.fixtures.executer.ExecutionResult
 import org.gradle.integtests.fixtures.executer.GradleExecuter
 import org.gradle.integtests.fixtures.timeout.IntegrationTestTimeout
@@ -31,7 +31,7 @@ import spock.lang.Issue
 import spock.lang.Unroll
 
 import static org.gradle.integtests.fixtures.StaleOutputJavaProject.JAR_TASK_NAME
-import static org.gradle.util.GFileUtils.forceDelete
+import static org.gradle.util.internal.GFileUtils.forceDelete
 
 @IntegrationTestTimeout(240)
 class StaleOutputHistoryLossIntegrationTest extends AbstractIntegrationSpec {
@@ -103,7 +103,7 @@ class StaleOutputHistoryLossIntegrationTest extends AbstractIntegrationSpec {
 
             sourceSets {
                 main {
-                    java.outputDir = file('out/classes/java/main')
+                    java.destinationDirectory.set(file('out/classes/java/main'))
                 }
             }
         """.stripIndent()
@@ -132,7 +132,7 @@ class StaleOutputHistoryLossIntegrationTest extends AbstractIntegrationSpec {
 
     // We register the output directory before task execution and would have deleted output files at the end of configuration.
     @Issue("https://github.com/gradle/gradle/issues/821")
-    @UnsupportedWithInstantExecution
+    @UnsupportedWithConfigurationCache
     def "production class files are removed even if output directory is reconfigured during execution phase"() {
         given:
         def javaProject = new StaleOutputJavaProject(testDirectory)
@@ -141,8 +141,8 @@ class StaleOutputHistoryLossIntegrationTest extends AbstractIntegrationSpec {
 
             task configureCompileJava {
                 doLast {
-                    compileJava.destinationDir = file('build/out')
-                    jar.from compileJava
+                    compileJava.destinationDirectory.set(file('build/out'))
+                    jar.from compileJava.destinationDirectory
                 }
             }
 

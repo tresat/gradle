@@ -19,7 +19,7 @@ package org.gradle.integtests
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 import org.gradle.integtests.fixtures.TestResources
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.junit.Rule
 import spock.lang.Issue
 import spock.lang.Unroll
@@ -29,18 +29,16 @@ class ExecIntegrationTest extends AbstractIntegrationSpec {
     public final TestResources testResources = new TestResources(testDirectoryProvider)
 
     @Unroll
-    @UnsupportedWithInstantExecution(iterationMatchers = ".*javaexecProjectMethod")
+    @UnsupportedWithConfigurationCache(iterationMatchers = ".*javaexecProjectMethod")
     def 'can execute java with #task'() {
         given:
         buildFile << """
-            import javax.inject.Inject
-
             apply plugin: 'java'
 
             task javaexecTask(type: JavaExec) {
                 def testFile = file("${'$'}buildDir/${'$'}name")
                 classpath(sourceSets.main.output.classesDirs)
-                main = 'org.gradle.TestMain'
+                mainClass = 'org.gradle.TestMain'
                 args projectDir, testFile
                 doLast {
                     assert testFile.exists()
@@ -55,7 +53,7 @@ class ExecIntegrationTest extends AbstractIntegrationSpec {
                     project.javaexec {
                         assert !(delegate instanceof ExtensionAware)
                         classpath(sourceSets.main.output.classesDirs)
-                        main 'org.gradle.TestMain'
+                        mainClass = 'org.gradle.TestMain'
                         args projectDir, testFile
                     }
                 }
@@ -70,7 +68,7 @@ class ExecIntegrationTest extends AbstractIntegrationSpec {
                 execOperations.javaexec {
                     assert !(it instanceof ExtensionAware)
                     it.classpath(execClasspath)
-                    it.main 'org.gradle.TestMain'
+                    it.mainClass = 'org.gradle.TestMain'
                     it.args layout.projectDirectory.asFile, testFile
                 }
                 assert testFile.exists()
@@ -87,12 +85,11 @@ class ExecIntegrationTest extends AbstractIntegrationSpec {
     }
 
     @Unroll
-    @UnsupportedWithInstantExecution(iterationMatchers = ".*execProjectMethod")
+    @UnsupportedWithConfigurationCache(iterationMatchers = ".*execProjectMethod")
     def 'can execute commands with #task'() {
         given:
         buildFile << """
             import org.gradle.internal.jvm.Jvm
-            import javax.inject.Inject
 
             apply plugin: 'java'
 
@@ -267,14 +264,13 @@ class ExecIntegrationTest extends AbstractIntegrationSpec {
     }
 
     @Unroll
-    @UnsupportedWithInstantExecution(iterationMatchers = [".*Task", ".*ProjectMethod"])
+    @UnsupportedWithConfigurationCache(iterationMatchers = [".*Task", ".*ProjectMethod"])
     def "can capture output of #task"() {
 
         given:
         buildFile << """
             import org.gradle.internal.jvm.Jvm
-            import javax.inject.Inject
-            import static org.gradle.util.TextUtil.normaliseFileAndLineSeparators
+            import static org.gradle.util.internal.TextUtil.normaliseFileAndLineSeparators
 
             apply plugin: 'java'
 
@@ -331,7 +327,7 @@ class ExecIntegrationTest extends AbstractIntegrationSpec {
             task javaexecTask(type: JavaExec) {
                 def testFile = file("${'$'}buildDir/${'$'}name")
                 classpath(sourceSets.main.output.classesDirs)
-                main = 'org.gradle.TestMain'
+                mainClass = 'org.gradle.TestMain'
                 args projectDir, testFile
                 def output = new ByteArrayOutputStream()
                 standardOutput = output
@@ -350,7 +346,7 @@ class ExecIntegrationTest extends AbstractIntegrationSpec {
                     project.javaexec {
                         assert !(delegate instanceof ExtensionAware)
                         classpath(sourceSets.main.output.classesDirs)
-                        main 'org.gradle.TestMain'
+                        mainClass = 'org.gradle.TestMain'
                         args projectDir, testFile
                         standardOutput = output
                     }
@@ -366,7 +362,7 @@ class ExecIntegrationTest extends AbstractIntegrationSpec {
                 execOperations.javaexec {
                     assert !(it instanceof ExtensionAware)
                     it.classpath(execClasspath)
-                    it.main 'org.gradle.TestMain'
+                    it.mainClass = 'org.gradle.TestMain'
                     it.args layout.projectDirectory.asFile, testFile
                     it.standardOutput = output
                 }
@@ -386,5 +382,22 @@ class ExecIntegrationTest extends AbstractIntegrationSpec {
             'execTask', 'execProjectMethod', 'execInjectedTaskAction',
             'javaexecTask', 'javaexecProjectMethod', 'javaexecInjectedTaskAction'
         ]
+    }
+
+    def "execResult property is deprecated"() {
+        when:
+        buildFile << """
+            task run(type: Exec) {
+                executable = org.gradle.internal.jvm.Jvm.current().getJavaExecutable()
+                args("-version")
+                doLast {
+                    println(execResult)
+                }
+            }
+        """
+        executer.expectDocumentedDeprecationWarning("The AbstractExecTask.execResult property has been deprecated. This is scheduled to be removed in Gradle 8.0. Please use the executionResult property instead. See https://docs.gradle.org/current/dsl/org.gradle.api.tasks.AbstractExecTask.html#org.gradle.api.tasks.AbstractExecTask:execResult for more details.")
+
+        then:
+        succeeds("run")
     }
 }

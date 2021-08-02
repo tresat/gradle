@@ -15,7 +15,7 @@
  */
 package org.gradle.language.nativeplatform
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.integtests.fixtures.Sample
 import org.gradle.nativeplatform.fixtures.AbstractInstalledToolChainIntegrationSpec
 import org.gradle.nativeplatform.fixtures.RequiresInstalledToolChain
@@ -48,7 +48,7 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
     }
 
     @RequiresInstalledToolChain(SUPPORTS_32_AND_64)
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "assembler"() {
         given:
         sample assembler
@@ -63,7 +63,7 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
         installation(assembler.dir.file("build/install/main")).exec().out == "5 + 7 = 12\n"
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "c"() {
         given:
         sample c
@@ -79,7 +79,7 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
         installation(c.dir.file("build/install/main")).exec().out == "Hello world!"
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "cpp"() {
         given:
         sample cpp
@@ -97,7 +97,7 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
 
     @RequiresInstalledToolChain(GCC_COMPATIBLE)
     @Requires(TestPrecondition.NOT_WINDOWS)
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "objectiveC"() {
         given:
         sample objectiveC
@@ -114,7 +114,7 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
 
     @RequiresInstalledToolChain(GCC_COMPATIBLE)
     @Requires(TestPrecondition.NOT_WINDOWS)
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "objectiveCpp"() {
         given:
         sample objectiveCpp
@@ -130,7 +130,7 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
     }
 
     @RequiresInstalledToolChain(VISUALCPP)
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "win rc"() {
         given:
         sample windowsResources
@@ -147,6 +147,9 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
         installation(windowsResources.dir.file("build/install/main")).exec().out == "Hello world!\n"
 
         when:
+        // To get rid of the deprecation, the sample under test could be split into two or otherwise refactored to use a single build file
+        // Since this one uses Software Model + Windows, for now letting it stay with the deprecation
+        executer.expectDocumentedDeprecationWarning("Specifying custom build file location has been deprecated. This is scheduled to be removed in Gradle 8.0. Consult the upgrading guide for further information: https://docs.gradle.org/current/userguide/upgrading_version_7.html#configuring_custom_build_layout");
         executer.usingBuildScript(windowsResources.dir.file('build-resource-only-dll.gradle'))
         run "helloResSharedLibrary"
 
@@ -154,7 +157,7 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
         file(windowsResources.dir.file("build/libs/helloRes/shared/helloRes.dll")).assertExists()
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "custom layout"() {
         given:
         sample customLayout
@@ -170,7 +173,7 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
         installation(customLayout.dir.file("build/install/main")).exec().out == "Hello world!"
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "idl"() {
         given:
         sample idl
@@ -186,7 +189,7 @@ class NativeLanguageSamplesIntegrationTest extends AbstractInstalledToolChainInt
         installation(idl.dir.file("build/install/main")).exec().out == "Hello from generated source!!\n"
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "pch"() {
         given:
         sample pch

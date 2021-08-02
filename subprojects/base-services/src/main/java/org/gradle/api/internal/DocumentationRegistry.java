@@ -16,11 +16,14 @@
 
 package org.gradle.api.internal;
 
+import org.gradle.internal.service.scopes.Scope;
+import org.gradle.internal.service.scopes.ServiceScope;
 import org.gradle.util.GradleVersion;
 
 /**
  * Locates documentation for various features.
  */
+@ServiceScope(Scope.Global.class)
 public class DocumentationRegistry {
     private final GradleVersion gradleVersion;
 
@@ -44,18 +47,11 @@ public class DocumentationRegistry {
         return String.format("https://docs.gradle.org/%s/dsl/%s.html#%s:%s", gradleVersion.getVersion(), className, className, property);
     }
 
-    /**
-     * Returns the location of the guide for the given name (e.g., "creating-new-gradle-builds").
-     */
-    public String getGuideFor(String guide) {
-        return String.format("https://guides.gradle.org/%s", guide);
+    public String getSampleIndex() {
+        return String.format("https://docs.gradle.org/%s/samples", gradleVersion.getVersion());
     }
 
-    /**
-     * Returns the location of the search results for guides for the given topic (e.g., "Native").
-     */
-    public String getTopicGuidesFor(String topic) {
-        return String.format("https://guides.gradle.org?q=%s", topic);
+    public String getSampleFor(String id) {
+        return String.format("https://docs.gradle.org/%s/samples/sample_%s.html", gradleVersion.getVersion(), id);
     }
-
 }

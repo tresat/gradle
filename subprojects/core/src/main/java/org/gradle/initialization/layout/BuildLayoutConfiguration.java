@@ -16,16 +16,14 @@
 package org.gradle.initialization.layout;
 
 import org.gradle.StartParameter;
-import org.gradle.TaskExecutionRequest;
 import org.gradle.api.internal.StartParameterInternal;
-import org.gradle.internal.scan.UsedByScanPlugin;
 
+import javax.annotation.Nullable;
 import java.io.File;
 
 /**
  * Configuration which affects the (static) layout of a build.
  */
-@UsedByScanPlugin
 public class BuildLayoutConfiguration {
     private final File currentDir;
     private final boolean searchUpwards;
@@ -34,21 +32,11 @@ public class BuildLayoutConfiguration {
 
     public BuildLayoutConfiguration(StartParameter startParameter) {
         currentDir = startParameter.getCurrentDir();
-        searchUpwards = ((StartParameterInternal)startParameter).isSearchUpwardsWithoutDeprecationWarning() && !isInitTaskRequested(startParameter);
-        settingsFile = startParameter.getSettingsFile();
-        useEmptySettings = ((StartParameterInternal)startParameter).isUseEmptySettingsWithoutDeprecationWarning();
-    }
-
-    private boolean isInitTaskRequested(StartParameter startParameter) {
-        if (startParameter.getTaskNames().contains("init")) {
-            return true;
-        }
-        for (TaskExecutionRequest request : startParameter.getTaskRequests()) {
-            if (request.getArgs().contains("init")) {
-                return true;
-            }
-        }
-        return false;
+        searchUpwards = ((StartParameterInternal)startParameter).isSearchUpwards();
+        @SuppressWarnings("deprecation")
+        File customSettingsFile = startParameter.getSettingsFile();
+        this.settingsFile = customSettingsFile;
+        useEmptySettings = ((StartParameterInternal)startParameter).isUseEmptySettings();
     }
 
     public File getCurrentDir() {
@@ -59,6 +47,10 @@ public class BuildLayoutConfiguration {
         return searchUpwards;
     }
 
+    /**
+     * When null, use the default. When not null, use the given value.
+     */
+    @Nullable
     public File getSettingsFile() {
         return settingsFile;
     }

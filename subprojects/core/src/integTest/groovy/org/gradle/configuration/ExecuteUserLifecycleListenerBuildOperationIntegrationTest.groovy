@@ -28,7 +28,7 @@ import org.gradle.initialization.NotifyProjectsEvaluatedBuildOperationType
 import org.gradle.initialization.NotifyProjectsLoadedBuildOperationType
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 import org.gradle.integtests.fixtures.BuildOperationsFixture
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.internal.logging.events.StyledTextOutputEvent
 import org.gradle.internal.operations.BuildOperationType
 import org.gradle.internal.operations.trace.BuildOperationRecord
@@ -96,7 +96,7 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         }
     }
 
-    @ToBeFixedForInstantExecution(because = "build listener")
+    @ToBeFixedForConfigurationCache(because = "build listener")
     def 'projectsLoaded listeners are attributed to the correct registrant'() {
         given:
         def addGradleListeners = { String source ->
@@ -175,7 +175,7 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         verifyHasChildren(parent, settingsPluginAppId, 'settings plugin', expectedGradleOps)
     }
 
-    @ToBeFixedForInstantExecution(because = "build listener")
+    @ToBeFixedForConfigurationCache(because = "build listener")
     def 'projectsEvaluated listeners are attributed to the correct registrant'() {
         given:
         def addGradleListeners = { String source ->
@@ -375,15 +375,13 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         ]
         def addProjectListeners = { String source, String target = null ->
             """
-            ${target == null ? '' : "project('$target') { project ->"}
-                project.afterEvaluate({
-                    println "project.afterEvaluate(Action) from $source"
-                } as Action)
-                project.afterEvaluate {
-                    println "project.afterEvaluate(Closure) from $source"
-                }
-            ${target == null ? '' : '}'}
-        """
+            project${target == null ? '' : "('$target')"}.afterEvaluate({
+                println "project.afterEvaluate(Action) from $source"
+            } as Action)
+            project.afterEvaluate {
+                println "project.afterEvaluate(Closure) from $source"
+            }
+            """
         }
         def expectedProjectOps = [
             expectedOp('Project.afterEvaluate', 'project.afterEvaluate(Action)'),
@@ -401,18 +399,15 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
 
         buildFile << addGradleListeners('root project script')
         buildFile << addProjectListeners('root project script', ':')
-        buildFile << addProjectListeners('root project script', ':sub')
         applyInlinePlugin(buildFile, 'Project', addProjectListeners('root project plugin'))
         applyScript(buildFile, scriptFile)
 
         subBuildFile << addGradleListeners('sub project script')
-        subBuildFile << addProjectListeners('sub project script', ':')
         subBuildFile << addProjectListeners('sub project script', ':sub')
         applyInlinePlugin(subBuildFile, 'Project', addProjectListeners('sub project plugin'))
         applyScript(subBuildFile, scriptFile)
 
         when:
-        executer.expectDeprecationWarnings(2)
         run()
 
         then:
@@ -430,11 +425,11 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
 
         and:
         def subAfterEvaluated = operations.only(NotifyProjectAfterEvaluatedBuildOperationType, { it.details.projectPath == ':sub' })
-        verifyExpectedNumberOfExecuteListenerChildren(subAfterEvaluated, expectedGradleOps.size() * 5 + expectedProjectOps.size() * 4)
+        verifyExpectedNumberOfExecuteListenerChildren(subAfterEvaluated, expectedGradleOps.size() * 5 + expectedProjectOps.size() * 3)
         verifyHasChildren(subAfterEvaluated, initScriptAppId, 'init', expectedGradleOps)
         verifyHasChildren(subAfterEvaluated, settingsScriptAppId, 'settings', expectedGradleOps)
         verifyHasChildren(subAfterEvaluated, settingsPluginAppId, 'settings plugin', expectedGradleOps)
-        verifyHasChildren(subAfterEvaluated, rootProjectScriptAppId, 'root project script', expectedGradleOps + expectedProjectOps)
+        verifyHasChildren(subAfterEvaluated, rootProjectScriptAppId, 'root project script', expectedGradleOps)
         verifyHasNoChildren(subAfterEvaluated, rootProjectPluginAppId) // we don't cross configure the plugin
         verifyHasNoChildren(subAfterEvaluated, rootOtherScriptAppId) // we don't cross configure the plugin
         verifyHasChildren(subAfterEvaluated, subProjectScriptAppId, 'sub project script', expectedGradleOps + expectedProjectOps)
@@ -502,7 +497,7 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         verifyHasChildren(rootAfterEvaluated, rootOtherScriptAppId, 'other script', expectedProjectOps)
     }
 
-    @ToBeFixedForInstantExecution(because = "build listener")
+    @ToBeFixedForConfigurationCache(because = "build listener")
     def 'taskGraph whenReady action listeners are attributed to the correct registrant'() {
         given:
         def addGradleListeners = { String source ->
@@ -522,7 +517,7 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
             } as Action)
             gradle.taskGraph.whenReady {
                 println "gradle.taskGraph.whenReady(Closure) from $source"
-            }            
+            }
         """
         }
         def expectedGradleOps = [
@@ -560,9 +555,6 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         def addGradleListeners = { String source ->
             """
             class ComboListener implements BuildListener, ProjectEvaluationListener, TaskExecutionGraphListener {
-                void buildStarted(Gradle gradle) {
-                    println 'gradle.addListener(ComboListener) from $source'
-                }
                 void beforeSettings(Settings settings) {
                     println 'gradle.addListener(ComboListener) from $source'
                 }
@@ -598,7 +590,6 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         initFile << addGradleListeners('init')
 
         when:
-        executer.expectDeprecationWarning()
         run()
 
         then:
@@ -627,14 +618,13 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         verifyHasChildren(whenReadyEvaluated, initScriptAppId, 'init', expectedGradleOps)
     }
 
-    @ToBeFixedForInstantExecution(because = "composite builds")
     def 'no extra executions for composite builds'() {
         // This test does two things:
         // - shake out internal listener registration that isn't using InternalListener.
         //   There are a lost of listeners registered through the methods that we've decorated in the composite build code
         // - sanity check application ids for the multi-build case
         given:
-        file('buildSrc/build.gradle') << """            
+        file('buildSrc/build.gradle') << """
         """
         includeBuild()
         file('included/build.gradle') << """
@@ -703,7 +693,7 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         verifyHasChildren(subAfterEvaluated, initOtherScriptAppId, 'script file allprojects', [expectedOp('Project.afterEvaluate', 'project.afterEvaluate(Closure)')])
     }
 
-    @ToBeFixedForInstantExecution(because = "build listener")
+    @ToBeFixedForConfigurationCache(because = "build listener")
     def 'decorated listener can be removed'() {
         given:
         initFile << """
@@ -724,7 +714,6 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         verifyExpectedNumberOfExecuteListenerChildren(projectsLoaded, 0)
     }
 
-    @ToBeFixedForInstantExecution(because = "GradleBuild")
     def 'application ids are unique across gradleBuild builds'() {
         given:
         initFile << ""
@@ -733,7 +722,6 @@ class ExecuteUserLifecycleListenerBuildOperationIntegrationTest extends Abstract
         buildFile << """
             tasks.help.dependsOn tasks.create('gb', GradleBuild) { gbTask ->
                 dir = 'gb'
-                buildFile = file('gb/build.gradle')
                 gbTask.tasks = ['help']
             }
         """

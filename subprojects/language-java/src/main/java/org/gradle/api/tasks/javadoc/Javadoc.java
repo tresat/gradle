@@ -18,7 +18,6 @@ package org.gradle.api.tasks.javadoc;
 
 import groovy.lang.Closure;
 import org.gradle.api.Action;
-import org.gradle.api.Incubating;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
@@ -26,6 +25,7 @@ import org.gradle.api.internal.file.FileTreeInternal;
 import org.gradle.api.internal.tasks.compile.CompilationSourceDirs;
 import org.gradle.api.jvm.ModularitySpec;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
@@ -37,18 +37,20 @@ import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceTask;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.javadoc.internal.JavadocGenerator;
 import org.gradle.api.tasks.javadoc.internal.JavadocSpec;
+import org.gradle.api.tasks.javadoc.internal.JavadocToolAdapter;
 import org.gradle.external.javadoc.MinimalJavadocOptions;
 import org.gradle.external.javadoc.StandardJavadocDocletOptions;
 import org.gradle.internal.file.Deleter;
 import org.gradle.internal.jvm.DefaultModularitySpec;
 import org.gradle.internal.jvm.JavaModuleDetector;
-import org.gradle.jvm.internal.toolchain.JavaToolChainInternal;
-import org.gradle.jvm.platform.JavaPlatform;
-import org.gradle.jvm.platform.internal.DefaultJavaPlatform;
-import org.gradle.jvm.toolchain.JavaToolChain;
-import org.gradle.language.base.internal.compile.Compiler;
-import org.gradle.util.ConfigureUtil;
+import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JavaToolchainSpec;
+import org.gradle.jvm.toolchain.JavadocTool;
+import org.gradle.jvm.toolchain.internal.CurrentJvmToolchainSpec;
+import org.gradle.process.internal.ExecActionFactory;
+import org.gradle.util.internal.ConfigureUtil;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -59,7 +61,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import static org.gradle.util.GUtil.isTrue;
+import static org.gradle.util.internal.GUtil.isTrue;
 
 /**
  * <p>Generates HTML API documentation for Java classes.</p>
@@ -102,6 +104,7 @@ import static org.gradle.util.GUtil.isTrue;
  */
 @CacheableTask
 public class Javadoc extends SourceTask {
+
     private File destinationDir;
 
     private boolean failOnError = true;
@@ -116,9 +119,11 @@ public class Javadoc extends SourceTask {
     private final ModularitySpec modularity;
 
     private String executable;
+    private final Property<JavadocTool> javadocTool;
 
     public Javadoc() {
         this.modularity = getObjectFactory().newInstance(DefaultModularitySpec.class);
+        this.javadocTool = getObjectFactory().property(JavadocTool.class);
     }
 
     @TaskAction
@@ -190,8 +195,24 @@ public class Javadoc extends SourceTask {
         spec.setWorkingDir(getProjectLayout().getProjectDirectory().getAsFile());
         spec.setOptionsFile(getOptionsFile());
 
-        Compiler<JavadocSpec> generator = ((JavaToolChainInternal) getToolChain()).select(getPlatform()).newCompiler(JavadocSpec.class);
-        generator.execute(spec);
+        if (spec.getExecutable() != null) {
+            new JavadocGenerator(getExecActionFactory()).execute(spec);
+        } else {
+            getJavadocToolAdapter().execute(spec);
+        }
+    }
+
+    private JavadocToolAdapter getJavadocToolAdapter() {
+        if (javadocTool.isPresent()) {
+            return (JavadocToolAdapter) this.javadocTool.get();
+        }
+        JavaToolchainSpec explicitToolchain = new CurrentJvmToolchainSpec(getObjectFactory());
+        return (JavadocToolAdapter) getJavaToolchainService().javadocToolFor(explicitToolchain).get();
+    }
+
+    @Inject
+    protected JavaToolchainService getJavaToolchainService() {
+        throw new UnsupportedOperationException();
     }
 
     /**
@@ -204,26 +225,14 @@ public class Javadoc extends SourceTask {
     }
 
     /**
-     * Returns the tool chain that will be used to generate the Javadoc.
+     * Configures the javadoc executable to be used to generate javadoc documentation.
+     *
+     * @since 6.7
      */
-    @Inject
-    @Deprecated
-    public JavaToolChain getToolChain() {
-        // Implementation is generated
-        throw new UnsupportedOperationException();
-    }
-
-    /**
-     * Sets the tool chain to use to generate the Javadoc.
-     */
-    @Deprecated
-    public void setToolChain(@SuppressWarnings("unused") JavaToolChain toolChain) {
-        // Implementation is generated
-        throw new UnsupportedOperationException();
-    }
-
-    private JavaPlatform getPlatform() {
-        return DefaultJavaPlatform.current();
+    @Nested
+    @Optional
+    public Property<JavadocTool> getJavadocTool() {
+        return javadocTool;
     }
 
     /**
@@ -336,7 +345,6 @@ public class Javadoc extends SourceTask {
      *
      * @since 6.4
      */
-    @Incubating
     @Nested
     public ModularitySpec getModularity() {
         return modularity;
@@ -391,9 +399,10 @@ public class Javadoc extends SourceTask {
 
     /**
      * Returns the Javadoc executable to use to generate the Javadoc. When {@code null}, the Javadoc executable for
-     * the current JVM is used.
+     * the current JVM is used or from the toolchain if configured.
      *
      * @return The executable. May be null.
+     * @see #getJavadocTool()
      */
     @Nullable
     @Optional
@@ -423,6 +432,11 @@ public class Javadoc extends SourceTask {
 
     @Inject
     protected JavaModuleDetector getJavaModuleDetector() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Inject
+    protected ExecActionFactory getExecActionFactory() {
         throw new UnsupportedOperationException();
     }
 }

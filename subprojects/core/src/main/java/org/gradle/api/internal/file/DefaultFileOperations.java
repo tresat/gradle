@@ -24,6 +24,8 @@ import org.gradle.api.file.ConfigurableFileTree;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.DeleteSpec;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.RegularFile;
+import org.gradle.api.internal.DocumentationRegistry;
 import org.gradle.api.internal.file.archive.TarFileTree;
 import org.gradle.api.internal.file.archive.ZipFileTree;
 import org.gradle.api.internal.file.collections.DirectoryFileTreeFactory;
@@ -32,8 +34,13 @@ import org.gradle.api.internal.file.copy.DefaultCopySpec;
 import org.gradle.api.internal.file.copy.FileCopier;
 import org.gradle.api.internal.file.delete.DefaultDeleteSpec;
 import org.gradle.api.internal.file.delete.DeleteSpecInternal;
+import org.gradle.api.internal.file.temp.TemporaryFileProvider;
+import org.gradle.api.internal.provider.ProviderInternal;
 import org.gradle.api.internal.resources.ApiTextResourceAdapter;
 import org.gradle.api.internal.resources.DefaultResourceHandler;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.resources.ReadableResource;
 import org.gradle.api.resources.ResourceHandler;
 import org.gradle.api.resources.internal.LocalResourceAdapter;
@@ -41,6 +48,7 @@ import org.gradle.api.resources.internal.ReadableResourceInternal;
 import org.gradle.api.tasks.WorkResult;
 import org.gradle.api.tasks.WorkResults;
 import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.internal.Cast;
 import org.gradle.internal.Factory;
 import org.gradle.internal.file.Deleter;
 import org.gradle.internal.hash.FileHasher;
@@ -49,8 +57,8 @@ import org.gradle.internal.nativeintegration.filesystem.FileSystem;
 import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.resource.local.LocalFileStandInExternalResource;
 import org.gradle.internal.service.ServiceRegistry;
-import org.gradle.util.ConfigureUtil;
-import org.gradle.util.GFileUtils;
+import org.gradle.util.internal.ConfigureUtil;
+import org.gradle.util.internal.GFileUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -70,6 +78,7 @@ public class DefaultFileOperations implements FileOperations {
     private final FileSystem fileSystem;
     private final DirectoryFileTreeFactory directoryFileTreeFactory;
     private final FileCollectionFactory fileCollectionFactory;
+    private final ProviderFactory providers;
 
     public DefaultFileOperations(
         FileResolver fileResolver,
@@ -80,10 +89,12 @@ public class DefaultFileOperations implements FileOperations {
         FileHasher fileHasher,
         DefaultResourceHandler.Factory resourceHandlerFactory,
         FileCollectionFactory fileCollectionFactory,
+        ObjectFactory objectFactory,
         FileSystem fileSystem,
         Factory<PatternSet> patternSetFactory,
-        Deleter deleter
-    ) {
+        Deleter deleter,
+        DocumentationRegistry documentationRegistry,
+        ProviderFactory providers) {
         this.fileCollectionFactory = fileCollectionFactory;
         this.fileResolver = fileResolver;
         this.temporaryFileProvider = temporaryFileProvider;
@@ -93,14 +104,17 @@ public class DefaultFileOperations implements FileOperations {
         this.streamHasher = streamHasher;
         this.fileHasher = fileHasher;
         this.patternSetFactory = patternSetFactory;
+        this.providers = providers;
         this.fileCopier = new FileCopier(
             deleter,
             directoryFileTreeFactory,
             fileCollectionFactory,
             fileResolver,
             patternSetFactory,
+            objectFactory,
             fileSystem,
-            instantiator
+            instantiator,
+            documentationRegistry
         );
         this.fileSystem = fileSystem;
         this.deleter = deleter;
@@ -152,24 +166,48 @@ public class DefaultFileOperations implements FileOperations {
 
     @Override
     public FileTreeInternal zipTree(Object zipPath) {
-        return new FileTreeAdapter(new ZipFileTree(file(zipPath), getExpandDir(), fileSystem, directoryFileTreeFactory, fileHasher), patternSetFactory);
+        Provider<File> fileProvider = asFileProvider(zipPath);
+        return new FileTreeAdapter(new ZipFileTree(fileProvider, getExpandDir(), fileSystem, directoryFileTreeFactory, fileHasher), patternSetFactory);
     }
 
     @Override
     public FileTreeInternal tarTree(Object tarPath) {
-        File tarFile = null;
-        ReadableResourceInternal resource;
-        if (tarPath instanceof ReadableResourceInternal) {
-            resource = (ReadableResourceInternal) tarPath;
-        } else if (tarPath instanceof ReadableResource) {
-            // custom type
-            resource = new UnknownBackingFileReadableResource((ReadableResource) tarPath);
-        } else {
-            tarFile = file(tarPath);
-            resource = new LocalResourceAdapter(new LocalFileStandInExternalResource(tarFile, fileSystem));
-        }
-        TarFileTree tarTree = new TarFileTree(tarFile, new MaybeCompressedFileResource(resource), getExpandDir(), fileSystem, directoryFileTreeFactory, streamHasher, fileHasher);
+        Provider<File> fileProvider = asFileProvider(tarPath);
+        Provider<ReadableResourceInternal> resource = providers.provider(() -> {
+            if (tarPath instanceof ReadableResourceInternal) {
+                return (ReadableResourceInternal) tarPath;
+            } else if (tarPath instanceof ReadableResource) {
+                // custom type
+                return new UnknownBackingFileReadableResource((ReadableResource) tarPath);
+            } else {
+                File tarFile = file(tarPath);
+                return new LocalResourceAdapter(new LocalFileStandInExternalResource(tarFile, fileSystem));
+            }
+        });
+
+        TarFileTree tarTree = new TarFileTree(fileProvider, resource.map(MaybeCompressedFileResource::new), getExpandDir(), fileSystem, directoryFileTreeFactory, streamHasher, fileHasher);
         return new FileTreeAdapter(tarTree, patternSetFactory);
+    }
+
+    private Provider<File> asFileProvider(Object path) {
+        if (path instanceof ReadableResource) {
+            return providers.provider(() -> null);
+        }
+        if (path instanceof Provider) {
+            ProviderInternal<?> provider = (ProviderInternal<?>) path;
+            Class<?> type = provider.getType();
+            if (type != null) {
+                if (File.class.isAssignableFrom(type)) {
+                    return Cast.uncheckedCast(path);
+                }
+                if (RegularFile.class.isAssignableFrom(type)) {
+                    Provider<RegularFile> regularFileProvider = Cast.uncheckedCast(provider);
+                    return regularFileProvider.map(RegularFile::getAsFile);
+                }
+            }
+            return provider.map(this::file);
+        }
+        return providers.provider(() -> file(path));
     }
 
     private File getExpandDir() {
@@ -245,6 +283,7 @@ public class DefaultFileOperations implements FileOperations {
 
     public static DefaultFileOperations createSimple(FileResolver fileResolver, FileCollectionFactory fileTreeFactory, ServiceRegistry services) {
         Instantiator instantiator = services.get(Instantiator.class);
+        ObjectFactory objectFactory = services.get(ObjectFactory.class);
         FileSystem fileSystem = services.get(FileSystem.class);
         DirectoryFileTreeFactory directoryFileTreeFactory = services.get(DirectoryFileTreeFactory.class);
         StreamHasher streamHasher = services.get(StreamHasher.class);
@@ -252,6 +291,8 @@ public class DefaultFileOperations implements FileOperations {
         ApiTextResourceAdapter.Factory textResourceAdapterFactory = services.get(ApiTextResourceAdapter.Factory.class);
         Factory<PatternSet> patternSetFactory = services.getFactory(PatternSet.class);
         Deleter deleter = services.get(Deleter.class);
+        DocumentationRegistry documentationRegistry = services.get(DocumentationRegistry.class);
+        ProviderFactory providers = services.get(ProviderFactory.class);
 
         DefaultResourceHandler.Factory resourceHandlerFactory = DefaultResourceHandler.Factory.from(
             fileResolver,
@@ -269,9 +310,11 @@ public class DefaultFileOperations implements FileOperations {
             fileHasher,
             resourceHandlerFactory,
             fileTreeFactory,
+            objectFactory,
             fileSystem,
             patternSetFactory,
-            deleter
-        );
+            deleter,
+            documentationRegistry,
+            providers);
     }
 }

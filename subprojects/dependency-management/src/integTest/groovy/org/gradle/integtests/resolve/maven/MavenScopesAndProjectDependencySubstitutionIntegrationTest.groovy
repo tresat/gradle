@@ -17,7 +17,7 @@
 package org.gradle.integtests.resolve.maven
 
 import org.gradle.integtests.fixtures.AbstractDependencyResolutionTest
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.integtests.fixtures.resolve.ResolveTestFixture
 
 class MavenScopesAndProjectDependencySubstitutionIntegrationTest extends AbstractDependencyResolutionTest {
@@ -61,7 +61,7 @@ project(':child1') {
         conf 'org.test:maven:1.0'
     }
     configurations.conf.resolutionStrategy.dependencySubstitution {
-        substitute module('org.test:replaced:1.0') with project(':child2')
+        substitute module('org.test:replaced:1.0') using project(':child2')
     }
 }
 project(':child2') {
@@ -96,7 +96,7 @@ project(':child2') {
         }
     }
 
-    @ToBeFixedForInstantExecution(because = "broken file collection")
+    @ToBeFixedForConfigurationCache(because = "broken file collection")
     def "when no target configuration is specified then a dependency on maven module includes the runtime dependencies of target project that is using the Java plugin"() {
         mavenRepo.module("org.test", "m1", "1.0").publish()
         mavenRepo.module("org.test", "m2", "1.0").publish()
@@ -110,7 +110,7 @@ project(':child1') {
         conf 'org.test:maven:1.0'
     }
     configurations.conf.resolutionStrategy.dependencySubstitution {
-        substitute module('org.test:replaced:1.0') with project(':child2')
+        substitute module('org.test:replaced:1.0') using project(':child2')
     }
 }
 project(':child2') {
@@ -153,7 +153,7 @@ project(':child1') {
         conf group: 'org.test', name: 'maven', version: '1.0', configuration: 'compile'
     }
     configurations.conf.resolutionStrategy.dependencySubstitution {
-        substitute module('org.test:replaced:1.0') with project(':child2')
+        substitute module('org.test:replaced:1.0') using project(':child2')
     }
 }
 project(':child2') {
@@ -189,7 +189,7 @@ project(':child2') {
         }
     }
 
-    @ToBeFixedForInstantExecution(because = "broken file collection")
+    @ToBeFixedForConfigurationCache(because = "broken file collection")
     def "a dependency on compile scope of maven module includes the runtime dependencies of target project that is using the Java plugin"() {
         mavenRepo.module("org.test", "m1", "1.0").publish()
         mavenRepo.module("org.test", "m2", "1.0").publish()
@@ -203,7 +203,7 @@ project(':child1') {
         conf group: 'org.test', name: 'maven', version: '1.0', configuration: 'compile'
     }
     configurations.conf.resolutionStrategy.dependencySubstitution {
-        substitute module('org.test:replaced:1.0') with project(':child2')
+        substitute module('org.test:replaced:1.0') using project(':child2')
     }
 }
 project(':child2') {

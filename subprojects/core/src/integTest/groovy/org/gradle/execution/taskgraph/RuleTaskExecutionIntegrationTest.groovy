@@ -17,7 +17,7 @@
 package org.gradle.execution.taskgraph
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.gradle.model.internal.core.ModelNode
 
 class RuleTaskExecutionIntegrationTest extends AbstractIntegrationSpec implements WithRuleBasedTasks {
@@ -87,7 +87,7 @@ class RuleTaskExecutionIntegrationTest extends AbstractIntegrationSpec implement
         createdTasksFor("t1") == [":t1"]
     }
 
-    @UnsupportedWithInstantExecution
+    @UnsupportedWithConfigurationCache
     def "task container is self closed by task selection and can be later graph closed"() {
         when:
         buildFile << '''
@@ -193,7 +193,7 @@ class RuleTaskExecutionIntegrationTest extends AbstractIntegrationSpec implement
         executed(":b:dependency")
     }
 
-    def "can get name of task defined in rules only script plugin after configuration"() {
+    def "can use getTasksByName() to get task defined in rules only script plugin after configuration"() {
         when:
         buildScript """
             apply from: "fooTask.gradle"
@@ -214,16 +214,14 @@ class RuleTaskExecutionIntegrationTest extends AbstractIntegrationSpec implement
         succeeds "check", "foo"
     }
 
-    def "cant get name of task defined in rules only script plugin during configuration"() {
-        // Not really a test, more of a documentation of the current behaviour
-        // getTasksByName() doesn't exhaustively check for rule based tasks
+    def "can use getTasksByName() to get task defined in rules only script plugin during configuration"() {
         when:
         buildScript """
             apply from: "fooTask.gradle"
             task check {
-              def fooTasks = getTasksByName("foo", false).toList()
+              def fooTasks = getTasksByName("foo", false).size()
               doFirst {
-                assert fooTasks.isEmpty()
+                assert fooTasks == 1
               }
             }
         """

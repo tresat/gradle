@@ -18,12 +18,11 @@
 package org.gradle.integtests.resolve.attributes
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
-import org.gradle.integtests.fixtures.FluidDependenciesResolveRunner
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
+import org.gradle.integtests.fixtures.extensions.FluidDependenciesResolveTest
 import org.gradle.test.fixtures.archive.JarTestFixture
-import org.junit.runner.RunWith
 
-@RunWith(FluidDependenciesResolveRunner)
+@FluidDependenciesResolveTest
 class VariantAwareResolutionWithConfigurationAttributesIntegrationTest extends AbstractIntegrationSpec {
 
     def setup() {
@@ -75,7 +74,7 @@ class VariantAwareResolutionWithConfigurationAttributesIntegrationTest extends A
                                 }
                                 def mergedResourcesConf = p.configurations.create("resources${f.capitalize()}${bt.capitalize()}") {
                                     extendsFrom p.configurations.implementation
-                                    
+
                                     attributes.attribute(buildType, bt)
                                     attributes.attribute(flavor, f)
                                     attributes.attribute(usage, 'resources')
@@ -97,15 +96,17 @@ class VariantAwareResolutionWithConfigurationAttributesIntegrationTest extends A
                                 }
                                 def aarTask = p.tasks.create("${f}${bt.capitalize()}Aar", Jar) { task ->
                                     // it's called AAR to reflect something that bundles everything
+                                    task.dependsOn compileTask
                                     task.dependsOn mergeResourcesTask
                                     task.archiveBaseName = "${p.name}-${f}${bt}"
                                     task.archiveExtension = 'aar'
-                                    task.from compileTask.outputs.files
+                                    task.from compileTask.destinationDirectory
                                     task.from p.zipTree(mergeResourcesTask.outputs.files.singleFile)
                                 }
                                 def jarTask = p.tasks.create("${f}${bt.capitalize()}Jar", Jar) { task ->
+                                    task.dependsOn compileTask
                                     task.archiveBaseName = "${p.name}-${f}${bt}"
-                                    task.from compileTask.outputs.files
+                                    task.from compileTask.destinationDirectory
                                 }
                                 p.artifacts.add("compile$baseName", jarTask)
                                 p.artifacts.add("_compile$baseName", aarTask)
@@ -141,7 +142,7 @@ class VariantAwareResolutionWithConfigurationAttributesIntegrationTest extends A
         noExceptionThrown()
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "compiling project variant doesn't imply execution of other variants build tasks"() {
         def projectDir = new FileTreeBuilder(testDirectory)
         given:
@@ -176,7 +177,7 @@ class VariantAwareResolutionWithConfigurationAttributesIntegrationTest extends A
         notExecuted ':compileJavaPaidRelease'
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "consuming subproject variant builds the project with the appropriate tasks"() {
         given:
         subproject('core') {
@@ -273,7 +274,7 @@ class VariantAwareResolutionWithConfigurationAttributesIntegrationTest extends A
 
     private static File withExternalDependencies(File buildFile, String dependenciesBlock) {
         buildFile << """
-            ${jcenterRepository()}
+            ${mavenCentralRepository()}
             dependencies {
                 $dependenciesBlock
             }

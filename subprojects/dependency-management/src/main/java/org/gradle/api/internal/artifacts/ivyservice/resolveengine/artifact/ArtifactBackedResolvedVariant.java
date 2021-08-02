@@ -19,12 +19,10 @@ package org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact;
 import org.gradle.api.Action;
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.attributes.AttributeContainer;
+import org.gradle.api.capabilities.CapabilitiesMetadata;
 import org.gradle.api.internal.artifacts.DownloadArtifactBuildOperationType;
-import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.ResolvedArtifactSet.AsyncArtifactListener;
-import org.gradle.api.internal.artifacts.transform.TransformationSubject;
 import org.gradle.api.internal.attributes.AttributeContainerInternal;
 import org.gradle.api.internal.file.FileCollectionInternal;
-import org.gradle.api.internal.tasks.TaskDependencyContainer;
 import org.gradle.api.internal.tasks.TaskDependencyResolveContext;
 import org.gradle.internal.DisplayName;
 import org.gradle.internal.component.model.VariantResolveMetadata;
@@ -34,7 +32,6 @@ import org.gradle.internal.operations.BuildOperationQueue;
 import org.gradle.internal.operations.RunnableBuildOperation;
 
 import javax.annotation.Nullable;
-import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -45,27 +42,29 @@ public class ArtifactBackedResolvedVariant implements ResolvedVariant {
     private final VariantResolveMetadata.Identifier identifier;
     private final DisplayName displayName;
     private final AttributeContainerInternal attributes;
+    private final CapabilitiesMetadata capabilities;
     private final ResolvedArtifactSet artifacts;
 
-    private ArtifactBackedResolvedVariant(@Nullable VariantResolveMetadata.Identifier identifier, DisplayName displayName, AttributeContainerInternal attributes, ResolvedArtifactSet artifacts) {
+    private ArtifactBackedResolvedVariant(@Nullable VariantResolveMetadata.Identifier identifier, DisplayName displayName, AttributeContainerInternal attributes, CapabilitiesMetadata capabilities, ResolvedArtifactSet artifacts) {
         this.identifier = identifier;
         this.displayName = displayName;
         this.attributes = attributes;
+        this.capabilities = capabilities;
         this.artifacts = artifacts;
     }
 
-    public static ResolvedVariant create(@Nullable VariantResolveMetadata.Identifier identifier, DisplayName displayName, AttributeContainerInternal attributes, Collection<? extends ResolvableArtifact> artifacts) {
+    public static ResolvedVariant create(@Nullable VariantResolveMetadata.Identifier identifier, DisplayName displayName, AttributeContainerInternal attributes, CapabilitiesMetadata capabilities, Collection<? extends ResolvableArtifact> artifacts) {
         if (artifacts.isEmpty()) {
-            return new ArtifactBackedResolvedVariant(identifier, displayName, attributes, EMPTY);
+            return new ArtifactBackedResolvedVariant(identifier, displayName, attributes, capabilities, EMPTY);
         }
         if (artifacts.size() == 1) {
-            return new ArtifactBackedResolvedVariant(identifier, displayName, attributes, new SingleArtifactSet(displayName, attributes, artifacts.iterator().next()));
+            return new ArtifactBackedResolvedVariant(identifier, displayName, attributes, capabilities, new SingleArtifactSet(displayName, attributes, capabilities, artifacts.iterator().next()));
         }
         List<SingleArtifactSet> artifactSets = new ArrayList<>(artifacts.size());
         for (ResolvableArtifact artifact : artifacts) {
-            artifactSets.add(new SingleArtifactSet(displayName, attributes, artifact));
+            artifactSets.add(new SingleArtifactSet(displayName, attributes, capabilities, artifact));
         }
-        return new ArtifactBackedResolvedVariant(identifier, displayName, attributes, CompositeResolvedArtifactSet.of(artifactSets));
+        return new ArtifactBackedResolvedVariant(identifier, displayName, attributes, capabilities, CompositeResolvedArtifactSet.of(artifactSets));
     }
 
     @Override
@@ -93,46 +92,63 @@ public class ArtifactBackedResolvedVariant implements ResolvedVariant {
         return attributes;
     }
 
-    private static class SingleArtifactSet implements ResolvedArtifactSet, ResolvedArtifactSet.Completion {
+    @Override
+    public CapabilitiesMetadata getCapabilities() {
+        return capabilities;
+    }
+
+    private static class SingleArtifactSet implements ResolvedArtifactSet, ResolvedArtifactSet.Artifacts {
         private final DisplayName variantName;
         private final AttributeContainer variantAttributes;
+        private final CapabilitiesMetadata capabilities;
         private final ResolvableArtifact artifact;
-        private volatile Throwable failure;
 
-        SingleArtifactSet(DisplayName variantName, AttributeContainer variantAttributes, ResolvableArtifact artifact) {
+        SingleArtifactSet(DisplayName variantName, AttributeContainer variantAttributes, CapabilitiesMetadata capabilities, ResolvableArtifact artifact) {
             this.variantName = variantName;
             this.variantAttributes = variantAttributes;
+            this.capabilities = capabilities;
             this.artifact = artifact;
         }
 
         @Override
-        public ResolvedArtifactSet.Completion startVisit(BuildOperationQueue<RunnableBuildOperation> actions, AsyncArtifactListener listener) {
-            if (listener.requireArtifactFiles()) {
+        public void visit(Visitor visitor) {
+            visitor.visitArtifacts(this);
+        }
+
+        @Override
+        public void startFinalization(BuildOperationQueue<RunnableBuildOperation> actions, boolean requireFiles) {
+            if (requireFiles) {
                 if (artifact.isResolveSynchronously()) {
                     // Resolve it now
-                    new DownloadArtifactFile(artifact, this, listener).run(null);
+                    artifact.getFileSource().finalizeIfNotAlready();
                 } else {
                     // Resolve it later
-                    actions.add(new DownloadArtifactFile(artifact, this, listener));
+                    actions.add(new DownloadArtifactFile(artifact));
                 }
             }
-            return this;
+        }
+
+        @Override
+        public void finalizeNow(boolean requireFiles) {
+            if (requireFiles) {
+                artifact.getFileSource().finalizeIfNotAlready();
+            }
         }
 
         @Override
         public void visit(ArtifactVisitor visitor) {
-            if (failure != null) {
-                visitor.visitFailure(failure);
+            if (visitor.requireArtifactFiles() && !artifact.getFileSource().getValue().isSuccessful()) {
+                visitor.visitFailure(artifact.getFileSource().getValue().getFailure().get());
             } else {
-                visitor.visitArtifact(variantName, variantAttributes, artifact);
+                visitor.visitArtifact(variantName, variantAttributes, capabilities.getCapabilities(), artifact);
                 visitor.endVisitCollection(FileCollectionInternal.OTHER);
             }
         }
 
         @Override
-        public void visitLocalArtifacts(LocalArtifactVisitor visitor) {
+        public void visitTransformSources(TransformSourceVisitor visitor) {
             if (artifact.getId().getComponentIdentifier() instanceof ProjectComponentIdentifier) {
-                visitor.visitArtifact(new SingleLocalArtifactSet(artifact));
+                visitor.visitArtifact(artifact);
             }
         }
 
@@ -154,68 +170,17 @@ public class ArtifactBackedResolvedVariant implements ResolvedVariant {
         }
     }
 
-    public static class SingleLocalArtifactSet implements ResolvedArtifactSet.LocalArtifactSet {
-        private final ResolvableArtifact artifact;
-
-        public SingleLocalArtifactSet(ResolvableArtifact artifact) {
-            this.artifact = artifact;
-        }
-
-        public ResolvableArtifact getArtifact() {
-            return artifact;
-        }
-
-        @Override
-        public Object getId() {
-            return artifact.getId();
-        }
-
-        @Override
-        public String getDisplayName() {
-            return artifact.getId().getDisplayName();
-        }
-
-        @Override
-        public TaskDependencyContainer getTaskDependencies() {
-            return artifact;
-        }
-
-        @Override
-        public TransformationSubject calculateSubject() {
-            return TransformationSubject.initial(artifact.getId(), artifact.getFile());
-        }
-
-        @Override
-        public ResolvableArtifact transformedTo(File output) {
-            return artifact.transformedTo(output);
-        }
-    }
-
     private static class DownloadArtifactFile implements RunnableBuildOperation {
         private final ResolvableArtifact artifact;
-        private final SingleArtifactSet owner;
-        private final AsyncArtifactListener listener;
 
-        DownloadArtifactFile(ResolvableArtifact artifact, SingleArtifactSet owner, AsyncArtifactListener visitor) {
+        DownloadArtifactFile(ResolvableArtifact artifact) {
             this.artifact = artifact;
-            this.owner = owner;
-            this.listener = visitor;
         }
 
         @Override
         public void run(BuildOperationContext context) {
-            try {
-                artifact.getFile();
-                listener.artifactAvailable(artifact);
-
-                // This method is sometimes called directly (i.e. not via an operation executor).
-                // In these cases, the context is null.
-                if (context != null) {
-                    context.setResult(DownloadArtifactBuildOperationType.RESULT);
-                }
-            } catch (Exception t) {
-                owner.failure = t;
-            }
+            artifact.getFileSource().finalizeIfNotAlready();
+            context.setResult(DownloadArtifactBuildOperationType.RESULT);
         }
 
         @Override

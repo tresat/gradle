@@ -20,7 +20,7 @@ import org.gradle.integtests.fixtures.AbstractIntegrationSpec
 import org.gradle.integtests.fixtures.ScriptExecuter
 import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
-import org.gradle.util.TextUtil
+import org.gradle.util.internal.TextUtil
 import spock.lang.Unroll
 
 class ApplicationPluginConfigurationIntegrationTest extends AbstractIntegrationSpec {
@@ -44,7 +44,7 @@ class ApplicationPluginConfigurationIntegrationTest extends AbstractIntegrationS
                 id("application")
             }
             application {
-                mainClassName = "test.Main"
+                mainClass = "test.Main"
             }
         """
 
@@ -56,9 +56,9 @@ class ApplicationPluginConfigurationIntegrationTest extends AbstractIntegrationS
         executer.workingDir = testDirectory
         executer.standardOutput = out
         executer.commandLine = "build/install/test/bin/test"
-
+        def result = executer.run()
         then:
-        executer.run().assertNormalExitValue()
+        result.assertNormalExitValue()
         out.toString() == TextUtil.toPlatformLineSeparators("all good\n")
     }
 
@@ -87,12 +87,6 @@ class ApplicationPluginConfigurationIntegrationTest extends AbstractIntegrationS
                 $configClass
                 $configModule
             }
-            compileJava {
-                modularity.inferModulePath.set(true)
-            }
-            startScripts {
-                modularity.inferModulePath.set(true)
-            }
         """
 
         if (configClass == '') {
@@ -101,6 +95,9 @@ class ApplicationPluginConfigurationIntegrationTest extends AbstractIntegrationS
         }
 
         when:
+        if (deprecation) {
+            executer.expectDocumentedDeprecationWarning("The JavaApplication.setMainClassName(String) method has been deprecated. This is scheduled to be removed in Gradle 8.0. Use #getMainClass().set(...) instead. See https://docs.gradle.org/current/dsl/org.gradle.api.plugins.JavaApplication.html#org.gradle.api.plugins.JavaApplication:mainClass for more details.")
+        }
         run("installDist")
 
         def out = new ByteArrayOutputStream()
@@ -114,10 +111,10 @@ class ApplicationPluginConfigurationIntegrationTest extends AbstractIntegrationS
         out.toString() == TextUtil.toPlatformLineSeparators("Module: $expectedModule\n")
 
         where:
-        configClass                   | configModule                  | expectedModule
-        "mainClassName = 'test.Main'" | ''                            | 'null'
-        "mainClass.set('test.Main')"  | ''                            | 'null'
-        "mainClass.set('test.Main')"  | "mainModule.set('test.main')" | 'test.main'
-        ''                            | "mainModule.set('test.main')" | 'test.main'
+        configClass                   | configModule                  | expectedModule | deprecation
+        "mainClassName = 'test.Main'" | ''                            | 'null'         | true
+        "mainClass.set('test.Main')"  | ''                            | 'null'         | false
+        "mainClass.set('test.Main')"  | "mainModule.set('test.main')" | 'test.main'    | false
+        ''                            | "mainModule.set('test.main')" | 'test.main'    | false
     }
 }

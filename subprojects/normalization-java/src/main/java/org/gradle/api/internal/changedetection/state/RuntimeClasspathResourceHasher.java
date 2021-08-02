@@ -16,13 +16,13 @@
 
 package org.gradle.api.internal.changedetection.state;
 
-import com.google.common.io.ByteStreams;
 import org.gradle.api.internal.file.archive.ZipEntry;
+import org.gradle.internal.fingerprint.hashing.RegularFileSnapshotContext;
+import org.gradle.internal.fingerprint.hashing.ResourceHasher;
+import org.gradle.internal.fingerprint.hashing.ZipEntryContext;
 import org.gradle.internal.hash.HashCode;
 import org.gradle.internal.hash.Hasher;
 import org.gradle.internal.hash.Hashing;
-import org.gradle.internal.hash.HashingOutputStream;
-import org.gradle.internal.snapshot.RegularFileSnapshot;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -36,15 +36,13 @@ public class RuntimeClasspathResourceHasher implements ResourceHasher {
 
     @Nullable
     @Override
-    public HashCode hash(RegularFileSnapshot fileSnapshot) {
-        return fileSnapshot.getHash();
+    public HashCode hash(RegularFileSnapshotContext fileSnapshotContext) {
+        return fileSnapshotContext.getSnapshot().getHash();
     }
 
     @Override
     public HashCode hash(ZipEntryContext zipEntryContext) throws IOException {
-        HashingOutputStream hasher = Hashing.primitiveStreamHasher();
-        ByteStreams.copy(zipEntryContext.getEntry().getInputStream(), hasher);
-        return hasher.hash();
+        return zipEntryContext.getEntry().withInputStream(Hashing::hashStream);
     }
 
     @Override

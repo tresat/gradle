@@ -17,9 +17,7 @@
 package org.gradle.invocation;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import groovy.lang.Closure;
-import org.gradle.BuildAdapter;
 import org.gradle.BuildListener;
 import org.gradle.BuildResult;
 import org.gradle.StartParameter;
@@ -42,6 +40,7 @@ import org.gradle.api.internal.plugins.PluginManagerInternal;
 import org.gradle.api.internal.project.AbstractPluginAware;
 import org.gradle.api.internal.project.CrossProjectConfigurator;
 import org.gradle.api.internal.project.ProjectInternal;
+import org.gradle.api.internal.project.ProjectRegistry;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.services.BuildServiceRegistry;
 import org.gradle.configuration.ScriptPluginFactory;
@@ -53,7 +52,7 @@ import org.gradle.internal.InternalBuildAdapter;
 import org.gradle.internal.MutableActionSet;
 import org.gradle.internal.build.BuildState;
 import org.gradle.internal.build.PublicBuildPath;
-import org.gradle.internal.deprecation.DeprecationLogger;
+import org.gradle.internal.composite.IncludedBuildInternal;
 import org.gradle.internal.enterprise.core.GradleEnterprisePluginManager;
 import org.gradle.internal.event.ListenerBroadcast;
 import org.gradle.internal.event.ListenerManager;
@@ -66,29 +65,31 @@ import org.gradle.listener.ClosureBackedMethodInvocationDispatch;
 import org.gradle.util.GradleVersion;
 import org.gradle.util.Path;
 
+import javax.annotation.Nullable;
 import javax.inject.Inject;
 import java.io.File;
 import java.util.Collection;
+import java.util.List;
 
 public abstract class DefaultGradle extends AbstractPluginAware implements GradleInternal {
 
     private SettingsInternal settings;
     private ProjectInternal rootProject;
     private ProjectInternal defaultProject;
-    private final GradleInternal parent;
+    private final BuildState parent;
     private final StartParameter startParameter;
     private final ServiceRegistry services;
     private final ListenerBroadcast<BuildListener> buildListenerBroadcast;
     private final ListenerBroadcast<ProjectEvaluationListener> projectEvaluationListenerBroadcast;
     private final CrossProjectConfigurator crossProjectConfigurator;
-    private Collection<IncludedBuild> includedBuilds;
-    private MutableActionSet<Project> rootProjectActions = new MutableActionSet<Project>();
+    private List<IncludedBuildInternal> includedBuilds;
+    private final MutableActionSet<Project> rootProjectActions = new MutableActionSet<Project>();
     private boolean projectsLoaded;
     private Path identityPath;
     private ClassLoaderScope classLoaderScope;
     private ClassLoaderScope baseProjectClassLoaderScope;
 
-    public DefaultGradle(GradleInternal parent, StartParameter startParameter, ServiceRegistryFactory parentRegistry) {
+    public DefaultGradle(@Nullable BuildState parent, StartParameter startParameter, ServiceRegistryFactory parentRegistry) {
         this.parent = parent;
         this.startParameter = startParameter;
         this.services = parentRegistry.createFor(this);
@@ -137,7 +138,7 @@ public abstract class DefaultGradle extends AbstractPluginAware implements Gradl
 
     @Override
     public GradleInternal getParent() {
-        return parent;
+        return parent == null ? null : parent.getMutableModel();
     }
 
     @Override
@@ -264,9 +265,7 @@ public abstract class DefaultGradle extends AbstractPluginAware implements Gradl
 
     @Inject
     @Override
-    public TaskExecutionGraphInternal getTaskGraph() {
-        throw new UnsupportedOperationException();
-    }
+    public abstract TaskExecutionGraphInternal getTaskGraph();
 
     @Override
     public ProjectEvaluationListener addProjectEvaluationListener(ProjectEvaluationListener listener) {
@@ -305,26 +304,6 @@ public abstract class DefaultGradle extends AbstractPluginAware implements Gradl
     public void afterProject(Action<? super Project> action) {
         assertProjectMutatingMethodAllowed("afterProject(Action)");
         projectEvaluationListenerBroadcast.add("afterEvaluate", getListenerBuildOperationDecorator().decorate("Gradle.afterProject", action));
-    }
-
-    @Override
-    public void buildStarted(Closure closure) {
-        DeprecationLogger.deprecateMethod(Gradle.class, "buildStarted(Closure)")
-            .willBeRemovedInGradle7()
-            .withUpgradeGuideSection(5, "apis_buildlistener_buildstarted_and_gradle_buildstarted_have_been_deprecated")
-            .nagUser();
-        notifyListenerRegistration("Gradle.buildStarted", closure);
-        buildListenerBroadcast.add(new ClosureBackedMethodInvocationDispatch("buildStarted", closure));
-    }
-
-    @Override
-    public void buildStarted(Action<? super Gradle> action) {
-        DeprecationLogger.deprecateMethod(Gradle.class, "buildStarted(Action)")
-            .willBeRemovedInGradle7()
-            .withUpgradeGuideSection(5, "apis_buildlistener_buildstarted_and_gradle_buildstarted_have_been_deprecated")
-            .nagUser();
-        notifyListenerRegistration("Gradle.buildStarted", action);
-        buildListenerBroadcast.add("buildStarted", action);
     }
 
     @Override
@@ -385,9 +364,6 @@ public abstract class DefaultGradle extends AbstractPluginAware implements Gradl
 
     @Override
     public void addListener(Object listener) {
-        if (listener instanceof BuildListener) {
-            nagBuildStartedDeprecationIfOverriden(((BuildListener) listener).getClass());
-        }
         addListener("Gradle.addListener", listener);
     }
 
@@ -419,21 +395,7 @@ public abstract class DefaultGradle extends AbstractPluginAware implements Gradl
 
     @Override
     public void addBuildListener(BuildListener buildListener) {
-        nagBuildStartedDeprecationIfOverriden(buildListener.getClass());
         addListener("Gradle.addBuildListener", buildListener);
-    }
-
-    private void nagBuildStartedDeprecationIfOverriden(Class<? extends BuildListener> buildListenerClass) {
-        try {
-            if (!ImmutableSet.of(BuildAdapter.class, InternalBuildAdapter.class).contains(buildListenerClass.getMethod("buildStarted", Gradle.class).getDeclaringClass())) {
-                DeprecationLogger.deprecateMethod(BuildListener.class, "buildStarted(Gradle)")
-                    .willBeRemovedInGradle7()
-                    .withUpgradeGuideSection(5, "apis_buildlistener_buildstarted_and_gradle_buildstarted_have_been_deprecated")
-                    .nagUser();
-            }
-        } catch (NoSuchMethodException e) {
-            assert false; // There's always a method named buildStarted
-        }
     }
 
     @Override
@@ -452,6 +414,16 @@ public abstract class DefaultGradle extends AbstractPluginAware implements Gradl
 
     @Override
     public Collection<IncludedBuild> getIncludedBuilds() {
+        return Cast.uncheckedCast(includedBuilds());
+    }
+
+    @Override
+    public void setIncludedBuilds(Collection<? extends IncludedBuildInternal> includedBuilds) {
+        this.includedBuilds = ImmutableList.copyOf(includedBuilds);
+    }
+
+    @Override
+    public List<? extends IncludedBuildInternal> includedBuilds() {
         if (includedBuilds == null) {
             throw new IllegalStateException("Included builds are not yet available for this build.");
         }
@@ -459,18 +431,13 @@ public abstract class DefaultGradle extends AbstractPluginAware implements Gradl
     }
 
     @Override
-    public void setIncludedBuilds(Collection<? extends IncludedBuild> includedBuilds) {
-        this.includedBuilds = ImmutableList.copyOf(includedBuilds);
-    }
-
-    @Override
     public IncludedBuild includedBuild(final String name) {
-        for (IncludedBuild includedBuild : getIncludedBuilds()) {
+        for (IncludedBuild includedBuild : includedBuilds()) {
             if (includedBuild.getName().equals(name)) {
                 return includedBuild;
             }
         }
-        throw new UnknownDomainObjectException("Included build '" + name + "' not found in " + toString() + ".");
+        throw new UnknownDomainObjectException("Included build '" + name + "' not found in " + this + ".");
     }
 
     @Override
@@ -511,6 +478,10 @@ public abstract class DefaultGradle extends AbstractPluginAware implements Gradl
         }
         return classLoaderScope;
     }
+
+    @Override
+    @Inject
+    public abstract ProjectRegistry<ProjectInternal> getProjectRegistry();
 
     @Inject
     protected TextUriResourceLoader.Factory getResourceLoaderFactory() {

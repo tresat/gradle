@@ -47,6 +47,8 @@ import org.gradle.api.model.ReplacedBy;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.Console;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
+import org.gradle.work.NormalizeLineEndings;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFile;
@@ -160,7 +162,9 @@ class DependencyManagementGlobalScopeServices {
                 CompileClasspath.class,
                 Incremental.class,
                 Optional.class,
-                PathSensitive.class
+                PathSensitive.class,
+                IgnoreEmptyDirectories.class,
+                NormalizeLineEndings.class
             ),
             instantiationScheme
         );
@@ -182,7 +186,9 @@ class DependencyManagementGlobalScopeServices {
                 CompileClasspath.class,
                 Incremental.class,
                 Optional.class,
-                PathSensitive.class
+                PathSensitive.class,
+                IgnoreEmptyDirectories.class,
+                NormalizeLineEndings.class
             ),
             instantiationScheme
         );

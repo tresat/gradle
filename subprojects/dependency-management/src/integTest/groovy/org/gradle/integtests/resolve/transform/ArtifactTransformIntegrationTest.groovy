@@ -19,14 +19,13 @@ package org.gradle.integtests.resolve.transform
 import org.gradle.api.internal.artifacts.transform.ExecuteScheduledTransformationStepBuildOperationType
 import org.gradle.integtests.fixtures.AbstractHttpDependencyResolutionTest
 import org.gradle.integtests.fixtures.BuildOperationsFixture
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.internal.file.FileType
 import org.gradle.test.fixtures.maven.MavenFileRepository
 import org.hamcrest.Matcher
 import spock.lang.Issue
 import spock.lang.Unroll
 
-import static org.gradle.integtests.fixtures.RepoScriptBlockUtil.jcenterRepository
 import static org.gradle.util.Matchers.matchesRegexp
 
 class ArtifactTransformIntegrationTest extends AbstractHttpDependencyResolutionTest implements ArtifactTransformTestFixture {
@@ -114,6 +113,7 @@ class ArtifactTransformIntegrationTest extends AbstractHttpDependencyResolutionT
 
         then:
         outputContains("variants: [{artifactType=size, org.gradle.status=release}, {artifactType=size, org.gradle.status=release}]")
+        outputContains("capabilities: [[capability group='test', name='test', version='1.3'], [capability group='test', name='test2', version='2.3']]")
         // transformed outputs should belong to same component as original
         outputContains("ids: [test-1.3.jar.txt (test:test:1.3), test2-2.3.jar.txt (test:test2:2.3)]")
         outputContains("components: [test:test:1.3, test:test2:2.3]")
@@ -149,7 +149,7 @@ class ArtifactTransformIntegrationTest extends AbstractHttpDependencyResolutionT
 
                     classpath 'org.apache.commons:commons-math3:3.6.1'
                 }
-                ${jcenterRepository()}
+                ${mavenCentralRepository()}
                 println(
                     configurations.classpath.incoming.artifactView {
                             attributes.attribute(artifactType, "size")
@@ -197,6 +197,7 @@ class ArtifactTransformIntegrationTest extends AbstractHttpDependencyResolutionT
 
         and:
         outputContains("variants: [{artifactType=size}, {artifactType=size}]")
+        outputContains("capabilities: [[], []]")
         // transformed outputs should belong to same component as original
         outputContains("ids: [a.jar.txt (a.jar), b.jar.txt (b.jar)]")
         outputContains("components: [a.jar, b.jar]")
@@ -255,6 +256,7 @@ class ArtifactTransformIntegrationTest extends AbstractHttpDependencyResolutionT
 
         and:
         outputContains("variants: [{artifactType=size, usage=api}, {artifactType=size, usage=api}]")
+        outputContains("capabilities: [[capability group='root', name='lib', version='unspecified'], [capability group='root', name='lib', version='unspecified']]")
         // transformed outputs should belong to same component as original
         outputContains("ids: [lib1.jar.txt (project :lib), lib2.jar.txt (project :lib)]")
         outputContains("components: [project :lib, project :lib]")
@@ -445,6 +447,7 @@ class ArtifactTransformIntegrationTest extends AbstractHttpDependencyResolutionT
 
         and:
         outputContains("variants: [{artifactType=size, usage=api}, {artifactType=size, usage=api}, {artifactType=size}, {artifactType=size, org.gradle.status=release}, {artifactType=size, usage=api}, {artifactType=size, usage=api}, {artifactType=size, org.gradle.status=release}]")
+        outputContains("capabilities: [[capability group='root', name='lib', version='unspecified'], [capability group='root', name='lib', version='unspecified'], [], [capability group='test', name='test', version='1.3'], [capability group='root', name='common', version='unspecified'], [capability group='root', name='common', version='unspecified'], [capability group='test', name='test-dependency', version='1.3']]")
         // transformed outputs should belong to same component as original
         outputContains("ids: [lib1.jar.txt (project :lib), lib2.jar.txt (project :lib), file1.jar.txt (file1.jar), test-1.3.jar.txt (test:test:1.3), common.jar.txt (project :common), common-file.jar.txt (project :common), test-dependency-1.3.jar.txt (test:test-dependency:1.3)]")
         outputContains("components: [project :lib, project :lib, file1.jar, test:test:1.3, project :common, project :common, test:test-dependency:1.3]")
@@ -950,6 +953,76 @@ class ArtifactTransformIntegrationTest extends AbstractHttpDependencyResolutionT
         output.contains("files: [lib.jar]")
     }
 
+    @Issue("https://github.com/gradle/gradle/issues/16962")
+    def "transforms registering the input as an output can use normalization"() {
+        file("input1.jar").text = "jar"
+        file("input2.jar").text = "jar"
+        buildFile("""
+            configurations {
+                api1 {
+                    attributes { attribute usage, 'api' }
+                }
+                api2 {
+                    attributes { attribute usage, 'api' }
+                }
+            }
+
+            abstract class IdentityTransform implements TransformAction<TransformParameters.None> {
+                @Classpath
+                @InputArtifact
+                abstract Provider<FileSystemLocation> getInputArtifact()
+
+                void transform(TransformOutputs outputs) {
+                    println "Selecting input artifact \${inputArtifact.get().asFile}"
+                    outputs.file(inputArtifact)
+                }
+            }
+
+            dependencies {
+                registerTransform(IdentityTransform) {
+                    from.attribute(artifactType, 'jar')
+                    to.attribute(artifactType, 'transformed')
+                }
+            }
+
+            task producer1(type: Jar)
+            task producer2(type: Jar)
+            tasks.withType(Jar).configureEach {
+                destinationDirectory = layout.buildDirectory.dir("produced")
+                archiveBaseName = name
+            }
+
+            ["api1", "api2"].each { conf ->
+                tasks.register("resolve\$conf", Copy) {
+                    duplicatesStrategy = 'INCLUDE'
+                    def artifacts = configurations."\$conf".incoming.artifactView {
+                        attributes { it.attribute(artifactType, 'transformed') }
+                    }.artifacts
+                    from artifacts.artifactFiles
+                    into "\${buildDir}/libs1"
+                    doLast {
+                        println "files: " + artifacts.collect { it.file.name }
+                        println "ids: " + artifacts.collect { it.id }
+                        println "components: " + artifacts.collect { it.id.componentIdentifier }
+                        println "variants: " + artifacts.collect { it.variant.attributes }
+                    }
+                }
+            }
+
+            dependencies {
+                api1 files(producer1)
+                api2 files(producer2)
+            }
+        """)
+
+        when:
+        run "resolveapi1", "resolveapi2"
+        then:
+        executedAndNotSkipped(":resolveapi1", ":resolveapi2")
+        outputContains("ids: [producer1.jar (producer1.jar)]")
+        outputContains("ids: [producer2.jar (producer2.jar)]")
+    }
+
     def "transform can generate multiple output files for a single input"() {
         def m1 = mavenRepo.module("test", "test", "1.3").publish()
         m1.artifactFile.text = "1234"
@@ -1382,7 +1455,7 @@ Found the following transforms:
         output.count("Transforming") == 0
     }
 
-    @ToBeFixedForInstantExecution(because = "task that uses file collection containing transforms but does not declare this as an input may be encoded before the transform nodes it references")
+    @ToBeFixedForConfigurationCache(because = "task that uses file collection containing transforms but does not declare this as an input may be encoded before the transform nodes it references")
     def "transforms are created as required and a new instance created for each file"() {
         given:
         buildFile << """
@@ -1518,7 +1591,7 @@ Found the following transforms:
         outputContains("files: [b.jar]")
     }
 
-    @ToBeFixedForInstantExecution(because = "treating file collection visit failures as a configuration cache problem adds an additional failure to the build summary; exception chain is different when transform input cannot be resolved")
+    @ToBeFixedForConfigurationCache(because = "treating file collection visit failures as a configuration cache problem adds an additional failure to the build summary; exception chain is different when transform input cannot be resolved")
     def "user gets a reasonable error message when a transform input cannot be downloaded and proceeds with other inputs"() {
         def m1 = ivyHttpRepo.module("test", "test", "1.3")
             .artifact(type: 'jar', name: 'test-api')
@@ -1572,7 +1645,7 @@ Found the following transforms:
         outputContains("files: [test-api-1.3.jar.txt, test-impl2-1.3.jar.txt, test-2-0.1.jar.txt]")
     }
 
-    @ToBeFixedForInstantExecution(because = "treating file collection visit failures as a configuration cache problem adds an additional failure to the build summary; exception chain is different when transform input cannot be resolved")
+    @ToBeFixedForConfigurationCache(because = "treating file collection visit failures as a configuration cache problem adds an additional failure to the build summary; exception chain is different when transform input cannot be resolved")
     def "user gets a reasonable error message when file dependency cannot be listed and continues with other inputs"() {
         given:
         buildFile << """
@@ -1933,7 +2006,7 @@ Found the following transforms:
         failure.assertHasCause("broken")
     }
 
-    @ToBeFixedForInstantExecution(because = "treating file collection visit failures as a configuration cache problem adds an additional failure to the build summary; exception chain is different when transform input cannot be resolved")
+    @ToBeFixedForConfigurationCache(because = "treating file collection visit failures as a configuration cache problem adds an additional failure to the build summary; exception chain is different when transform input cannot be resolved")
     def "collects multiple failures"() {
         def m1 = mavenHttpRepo.module("test", "a", "1.3").publish()
         def m2 = mavenHttpRepo.module("test", "broken", "2.0").publish()
@@ -2048,6 +2121,7 @@ Found the following transforms:
             }
 """
         then:
+        executer.expectDeprecationWarning("Registering artifact transforms extending ArtifactTransform has been deprecated. This is scheduled to be removed in Gradle 8.0. Implement TransformAction instead.")
         fails "help"
 
         and:
@@ -2119,12 +2193,8 @@ Found the following transforms:
         fails "resolve"
         then:
         Matcher<String> matchesCannotIsolate = matchesRegexp("Could not isolate parameters Custom\\\$Parameters_Decorated@.* of artifact transform Custom")
-        if (scheduled) {
-            failure.assertThatDescription(matchesCannotIsolate)
-        } else {
-            failure.assertHasDescription("Execution failed for task ':resolve'.")
-            failure.assertThatCause(matchesCannotIsolate)
-        }
+        failure.assertHasDescription("Execution failed for task ':resolve'.")
+        failure.assertThatCause(matchesCannotIsolate)
         failure.assertHasCause("Could not serialize value of type CustomType")
 
         where:
@@ -2567,6 +2637,29 @@ Found the following transforms:
         output.contains("> Task :app:resolve")
     }
 
+    def "emits deprecation warning when old style transform is registered"() {
+        buildFile << """
+            dependencies {
+                registerTransform {
+                    from.attribute(artifactType, 'jar')
+                    to.attribute(artifactType, 'size')
+                    artifactTransform(OldStyleTransform)
+                }
+            }
+
+            class OldStyleTransform extends ArtifactTransform {
+                List<File> transform(File input) {
+                    return []
+                }
+            }
+        """
+
+        when:
+        executer.expectDeprecationWarning("Registering artifact transforms extending ArtifactTransform has been deprecated. This is scheduled to be removed in Gradle 8.0. Implement TransformAction instead.")
+        then:
+        succeeds "help"
+    }
+
     def declareTransform(String transformImplementation) {
         """
             dependencies {
@@ -2606,6 +2699,7 @@ Found the following transforms:
                     println "ids: " + artifacts.collect { it.id }
                     println "components: " + artifacts.collect { it.id.componentIdentifier }
                     println "variants: " + artifacts.collect { it.variant.attributes }
+                    println "capabilities: " + artifacts.collect { it.variant.capabilities }
                 }
             }
 """

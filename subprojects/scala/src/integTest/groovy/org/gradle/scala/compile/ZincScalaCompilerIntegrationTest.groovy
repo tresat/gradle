@@ -16,142 +16,21 @@
 package org.gradle.scala.compile
 
 import org.gradle.integtests.fixtures.AvailableJavaHomes
-import org.gradle.integtests.fixtures.MultiVersionIntegrationSpec
 import org.gradle.integtests.fixtures.ScalaCoverage
 import org.gradle.integtests.fixtures.TargetCoverage
-import org.gradle.integtests.fixtures.TestResources
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
-import org.gradle.internal.hash.Hashing
-import org.gradle.test.fixtures.file.ClassFile
-import org.gradle.util.VersionNumber
 import org.junit.Assume
-import org.junit.Rule
+import spock.lang.Issue
 
-import static org.gradle.integtests.fixtures.RepoScriptBlockUtil.mavenCentralRepositoryDefinition
-import static org.gradle.util.TextUtil.escapeString
-import static org.gradle.util.TextUtil.normaliseFileSeparators
+import static org.gradle.util.internal.TextUtil.normaliseFileSeparators
 import static org.hamcrest.core.IsNull.notNullValue
 
 @TargetCoverage({ ScalaCoverage.DEFAULT })
-class ZincScalaCompilerIntegrationTest extends MultiVersionIntegrationSpec {
-    @Rule
-    TestResources testResources = new TestResources(temporaryFolder)
+class ZincScalaCompilerIntegrationTest extends BasicZincScalaCompilerIntegrationTest {
 
-    def setup() {
-        args("-PscalaVersion=$version")
-        buildFile << buildScript()
-        executer.withRepositoryMirrors()
-    }
-
-    def compileGoodCode() {
-        given:
-        goodCode()
-
-        expect:
-        succeeds("compileScala")
-        scalaClassFile("compile/test/Person.class").exists()
-    }
-
-    def compileBadCode() {
-        given:
-        badCode()
-
-        expect:
-        fails("compileScala")
-        result.assertHasErrorOutput("type mismatch")
-        scalaClassFile("").assertHasDescendants()
-    }
-
-    def useCompilerPluginIfDefined() {
-        given:
-        file("build.gradle") << """
-            apply plugin: 'scala'
-
-            ${mavenCentralRepository()}
-
-            dependencies {
-                implementation 'org.scala-lang:scala-library:2.13.1'
-                scalaCompilerPlugins "org.typelevel:kind-projector_2.13.1:0.11.0"
-            }
-        """
-
-        file("src/main/scala/KingProjectorTest.scala") << """
-            object KingProjectorTest {
-                class A[X[_]]
-                new A[Map[Int, *]] // this expression requires kind projector
-            }"""
-
-        expect:
-        succeeds("compileScala")
-    }
-
-    def "compile bad scala code do not fail the build when options.failOnError is false"() {
-        given:
-        badCode()
-
-        and:
-        buildFile << "compileScala.options.failOnError = false\n"
-
-        expect:
-        succeeds 'compileScala'
-    }
-
-    def "compile bad scala code do not fail the build when scalaCompileOptions.failOnError is false"() {
-        given:
-        badCode()
-
-        and:
-        buildFile << "compileScala.scalaCompileOptions.failOnError = false\n"
-
-        expect:
-        succeeds 'compileScala'
-    }
-
-    def "joint compile bad java code do not fail the build when options.failOnError is false"() {
-        given:
-        goodCode()
-        badJavaCode()
-
-        and:
-        buildFile << "compileScala.options.failOnError = false\n"
-
-        expect:
-        succeeds 'compileScala'
-    }
-
-    def "joint compile bad java code do not fail the build when scalaCompileOptions.failOnError is false"() {
-        given:
-        goodCode()
-        badJavaCode()
-
-        and:
-        buildFile << "compileScala.scalaCompileOptions.failOnError = false\n"
-
-        expect:
-        succeeds 'compileScala'
-    }
-
-    def compileBadCodeWithoutFailing() {
-        given:
-        badCode()
-
-        and:
-        buildFile <<
-            """
-compileScala.scalaCompileOptions.failOnError = false
-"""
-
-        expect:
-        succeeds("compileScala")
-        result.assertHasErrorOutput("type mismatch")
-        scalaClassFile("").assertHasDescendants()
-    }
-
-    def "respects fork options settings and executable"() {
+    def "respects fork options settings and ignores executable"() {
         def differentJvm = AvailableJavaHomes.differentJdk
         Assume.assumeThat(differentJvm, notNullValue())
         def differentJavaExecutablePath = normaliseFileSeparators(differentJvm.javaExecutable.absolutePath)
-        def differentJavaExecutableCanonicalPath = escapeString(differentJvm.javaExecutable.canonicalPath)
 
         file("build.gradle") << """
             import org.gradle.workers.internal.WorkerDaemonClientsManager
@@ -165,11 +44,6 @@ compileScala.scalaCompileOptions.failOnError = false
                 implementation 'org.scala-lang:scala-library:2.11.12'
             }
 
-            java {
-                sourceCompatibility = JavaVersion.${differentJvm.javaVersion.name()}
-                targetCompatibility = JavaVersion.${differentJvm.javaVersion.name()}
-            }
-
             tasks.withType(ScalaCompile) {
                 options.forkOptions.executable = "${differentJavaExecutablePath}"
                 options.forkOptions.memoryInitialSize = "128m"
@@ -178,7 +52,7 @@ compileScala.scalaCompileOptions.failOnError = false
 
                 doLast {
                     assert services.get(WorkerDaemonClientsManager).idleClients.find {
-                        new File(it.forkOptions.javaForkOptions.executable).canonicalPath == "${differentJavaExecutableCanonicalPath}" &&
+                        new File(it.forkOptions.javaForkOptions.executable).canonicalPath == Jvm.current().javaExecutable.canonicalPath &&
                         it.forkOptions.javaForkOptions.minHeapSize == "128m" &&
                         it.forkOptions.javaForkOptions.maxHeapSize == "256m" &&
                         it.forkOptions.javaForkOptions.systemProperties['foo'] == "bar"
@@ -198,149 +72,6 @@ compileScala.scalaCompileOptions.failOnError = false
 
     }
 
-    def compileWithSpecifiedEncoding() {
-        given:
-        goodCodeEncodedWith("ISO8859_7")
-
-        and:
-        buildFile <<
-            """
-apply plugin: "application"
-mainClassName = "Main"
-compileScala.scalaCompileOptions.encoding = "ISO8859_7"
-"""
-
-        expect:
-        succeeds("run")
-        file("encoded.out").getText("utf-8") == "\u03b1\u03b2\u03b3"
-    }
-
-    def compilesWithSpecifiedDebugSettings() {
-        given:
-        goodCode()
-
-        when:
-        run("compileScala")
-
-        then:
-        def fullDebug = classFile("compile/test/Person.class")
-        fullDebug.debugIncludesSourceFile
-        fullDebug.debugIncludesLineNumbers
-        fullDebug.debugIncludesLocalVariables
-
-        when:
-        buildFile <<
-            """
-compileScala.scalaCompileOptions.debugLevel = "line"
-"""
-        run("compileScala")
-
-        then:
-        def linesOnly = classFile("compile/test/Person.class")
-        linesOnly.debugIncludesSourceFile
-        linesOnly.debugIncludesLineNumbers
-        !linesOnly.debugIncludesLocalVariables
-
-        // older versions of scalac Ant task don't handle 'none' correctly
-        if (versionNumber < VersionNumber.parse("2.10.0-AAA")) {
-            return
-        }
-
-        when:
-        buildFile <<
-            """
-compileScala.scalaCompileOptions.debugLevel = "none"
-"""
-        run("compileScala")
-
-        then:
-        def noDebug = classFile("compile/test/Person.class")
-        !noDebug.debugIncludesLineNumbers
-        !noDebug.debugIncludesSourceFile
-        !noDebug.debugIncludesLocalVariables
-    }
-
-    def buildScript() {
-        """
-apply plugin: "scala"
-
-repositories {
-    ${mavenCentralRepositoryDefinition()}
-}
-
-dependencies {
-    implementation "org.scala-lang:scala-library:$version"
-}
-"""
-    }
-
-    def goodCode() {
-        file("src/main/scala/compile/test/Person.scala") <<
-            """
-package compile.test
-
-class Person(val name: String, val age: Int) {
-    def hello(): List[Int] = List(3, 1, 2)
-}
-"""
-        file("src/main/scala/compile/test/Person2.scala") <<
-            """
-package compile.test
-
-class Person2(name: String, age: Int) extends Person(name, age) {
-}
-"""
-    }
-
-    def goodCodeEncodedWith(String encoding) {
-        def code =
-            """
-import java.io.{FileOutputStream, File, OutputStreamWriter}
-
-object Main {
-    def main(args: Array[String]): Unit = {
-        // Some lowercase greek letters
-        val content = "\u03b1\u03b2\u03b3"
-        val writer = new OutputStreamWriter(new FileOutputStream(new File("encoded.out")), "utf-8")
-        writer.write(content)
-        writer.close()
-    }
-}
-"""
-        def file = file("src/main/scala/Main.scala")
-        file.parentFile.mkdirs()
-        file.withWriter(encoding) { writer ->
-            writer.write(code)
-        }
-
-        // Verify some assumptions: that we've got the correct characters in there, and that we're not using the system encoding
-        assert code.contains(new String(Character.toChars(0x3b1)))
-        assert !Arrays.equals(code.bytes, file.bytes)
-    }
-
-    def badCode() {
-        file("src/main/scala/compile/test/Person.scala") <<
-            """
-package compile.test
-
-class Person(val name: String, val age: Int) {
-    def hello() : String = 42
-}
-"""
-    }
-
-    def badJavaCode() {
-        file("src/main/scala/compile/test/Something.java") << """
-            package compile.test;
-            public class Something extends {}
-        """.stripIndent()
-    }
-
-    def classFile(String path) {
-        return new ClassFile(scalaClassFile(path))
-    }
-
-    @ToBeFixedForInstantExecution
     def compilesScalaCodeIncrementally() {
         setup:
         def person = scalaClassFile("Person.class")
@@ -360,7 +91,6 @@ class Person(val name: String, val age: Int) {
         other.lastModified() == old(other.lastModified())
     }
 
-    @ToBeFixedForInstantExecution
     def compilesJavaCodeIncrementally() {
         setup:
         def person = scalaClassFile("Person.class")
@@ -380,7 +110,6 @@ class Person(val name: String, val age: Int) {
         other.lastModified() == old(other.lastModified())
     }
 
-    @ToBeFixedForInstantExecution
     def compilesIncrementallyAcrossProjectBoundaries() {
         setup:
         def person = file("prj1/build/classes/scala/main/Person.class")
@@ -402,7 +131,6 @@ class Person(val name: String, val age: Int) {
 
     }
 
-    @ToBeFixedForInstantExecution
     def compilesAllScalaCodeWhenForced() {
         setup:
         def person = scalaClassFile("Person.class")
@@ -422,13 +150,33 @@ class Person(val name: String, val age: Int) {
         other.lastModified() != old(other.lastModified())
     }
 
-    def classHash(File file) {
-        def dir = file.parentFile
-        def name = file.name - '.class'
-        def hasher = Hashing.md5().newHasher()
-        dir.listFiles().findAll { it.name.startsWith(name) && it.name.endsWith('.class') }.sort().each {
-            hasher.putBytes(it.bytes)
-        }
-        hasher.hash()
+    @Issue("gradle/gradle#13535")
+    def doNotPropagateWorkerClasspathToCompilationClasspath() {
+        given:
+        // scala 2.12 is used because for 2.13 this particular case is ok
+        file("build.gradle") << """
+            apply plugin: 'scala'
+
+            ${mavenCentralRepository()}
+
+            dependencies {
+                implementation 'org.scala-lang:scala-library:2.12.11'
+            }
+        """
+
+        file("src/main/scala/ScalaXml.scala") << """
+            import scala.xml.Text
+
+            object ScalaXml {
+              def main(args: Array[String]): Unit = {
+                val text = new Text("test")
+                println(text)
+              }
+            }"""
+
+        expect:
+        fails("compileScala")
+        result.assertHasErrorOutput("object xml is not a member of package scala")
     }
+
 }

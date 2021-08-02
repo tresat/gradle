@@ -16,7 +16,7 @@
 package org.gradle.integtests.resolve.constraints
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.integtests.fixtures.resolve.ResolveTestFixture
 
 /**
@@ -73,7 +73,7 @@ class DependencyConstraintsAndResolutionStrategiesIntegrationTest extends Abstra
         }
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void "fail-on-conflict resolution strategy is applied to dependency constraints"() {
         given:
         buildFile << """
@@ -107,7 +107,7 @@ class DependencyConstraintsAndResolutionStrategiesIntegrationTest extends Abstra
             }
             configurations.conf.resolutionStrategy {
                 dependencySubstitution {
-                    substitute module("org:foo:1.1") with module("org:foo:1.0")
+                    substitute module("org:foo:1.1") using module("org:foo:1.0")
                 }
             }
         """

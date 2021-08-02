@@ -16,7 +16,6 @@
 package org.gradle.integtests
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
 import org.gradle.integtests.fixtures.ZincScalaCompileFixture
 import org.junit.Rule
 
@@ -24,7 +23,6 @@ class ScalaProjectIntegrationTest extends AbstractIntegrationSpec {
     @Rule
     ZincScalaCompileFixture zincScalaCompileFixture = new ZincScalaCompileFixture(executer, testDirectoryProvider)
 
-    @ToBeFixedForInstantExecution(because = "gradle/instant-execution#270")
     def "handles java source only"() {
         file("src/main/java/somepackage/SomeClass.java") << "public class SomeClass { }"
         buildFile << """
@@ -32,9 +30,39 @@ class ScalaProjectIntegrationTest extends AbstractIntegrationSpec {
         """
         settingsFile << """
             rootProject.name = 'javaOnly'
+            dependencyResolutionManagement {
+                ${mavenCentralRepository()}
+            }
         """
         expect:
         succeeds "build"
         file("build/libs/javaOnly.jar").assertExists()
+    }
+
+    def "supports central repository declaration"() {
+        given:
+        buildFile << """
+plugins {
+    id 'scala'
+}
+dependencies {
+    implementation 'org.scala-lang:scala-library:2.11.12'
+}
+"""
+        settingsFile << """
+rootProject.name = 'scalaCompilation'
+dependencyResolutionManagement {
+    ${mavenCentralRepository()}
+}
+"""
+        and:
+        file('src/main/scala/Test.scala') << """
+class Test { }
+"""
+        when:
+        succeeds 'compileScala'
+
+        then:
+        executedAndNotSkipped(':compileScala')
     }
 }

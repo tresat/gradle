@@ -21,11 +21,17 @@ import org.gradle.api.internal.tasks.TaskPropertyUtils
 import org.gradle.api.internal.tasks.properties.GetInputFilesVisitor
 import org.gradle.api.internal.tasks.properties.PropertyWalker
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
+import org.gradle.internal.reflect.problems.ValidationProblemId
+import org.gradle.internal.reflect.validation.ValidationMessageChecker
+import org.gradle.internal.reflect.validation.ValidationTestFor
 import spock.lang.Issue
 import spock.lang.Unroll
 
-class TaskInputFilePropertiesIntegrationTest extends AbstractIntegrationSpec {
+class TaskInputFilePropertiesIntegrationTest extends AbstractIntegrationSpec implements ValidationMessageChecker {
+    def setup() {
+        expectReindentedValidationMessage()
+    }
 
     @Unroll
     def "allows optional @#annotation.simpleName to have null value"() {
@@ -56,12 +62,15 @@ class TaskInputFilePropertiesIntegrationTest extends AbstractIntegrationSpec {
         succeeds "customTask"
 
         where:
-        annotation << [ InputFile, InputDirectory, InputFiles ]
+        annotation << [InputFile, InputDirectory, InputFiles]
     }
 
+    @ValidationTestFor(
+        ValidationProblemId.UNSUPPORTED_NOTATION
+    )
     @Unroll
     @Issue("https://github.com/gradle/gradle/issues/3193")
-    @ToBeFixedForInstantExecution(because = "multiple build failures")
+    @ToBeFixedForConfigurationCache(because = "multiple build failures")
     def "TaskInputs.#method shows error message when used with complex input"() {
         buildFile << """
             task dependencyTask {
@@ -78,7 +87,21 @@ class TaskInputFilePropertiesIntegrationTest extends AbstractIntegrationSpec {
         expect:
         fails "test"
         failure.assertHasDescription("A problem was found with the configuration of task ':test' (type 'DefaultTask').")
-        failure.assertHasCause("Value 'task ':dependencyTask'' specified for property 'input' cannot be converted to a ${targetType}.")
+        failureDescriptionContains(unsupportedNotation {
+            property('input')
+                .value("task ':dependencyTask'")
+                .cannotBeConvertedTo(targetType)
+                .candidates(
+                    "a String or CharSequence path, for example 'src/main/java' or '/usr/include'",
+                    "a String or CharSequence URI, for example 'file:/usr/include'",
+                    "a File instance",
+                    "a Path instance",
+                    "a Directory instance",
+                    "a RegularFile instance",
+                    "a URI or URL instance",
+                    "a TextResource instance"
+                ).includeLink()
+        })
 
         where:
         method | targetType
@@ -86,8 +109,11 @@ class TaskInputFilePropertiesIntegrationTest extends AbstractIntegrationSpec {
         "file" | "file"
     }
 
+    @ValidationTestFor(
+        ValidationProblemId.UNSUPPORTED_NOTATION
+    )
     @Unroll
-    @ToBeFixedForInstantExecution(because = "multiple build failures")
+    @ToBeFixedForConfigurationCache(because = "multiple build failures")
     def "#annotation.simpleName shows error message when used with complex input"() {
         buildFile << """
             import org.gradle.api.internal.tasks.properties.GetInputFilesVisitor
@@ -112,7 +138,21 @@ class TaskInputFilePropertiesIntegrationTest extends AbstractIntegrationSpec {
         expect:
         fails "customTask"
         failure.assertHasDescription("A problem was found with the configuration of task ':customTask' (type 'CustomTask').")
-        failure.assertHasCause("Value 'task ':dependencyTask'' specified for property 'input' cannot be converted to a ${targetType}.")
+        failureDescriptionContains(unsupportedNotation {
+            type('CustomTask').property('input')
+                .value("task ':dependencyTask'")
+                .cannotBeConvertedTo(targetType)
+                .candidates(
+                    "a String or CharSequence path, for example 'src/main/java' or '/usr/include'",
+                    "a String or CharSequence URI, for example 'file:/usr/include'",
+                    "a File instance",
+                    "a Path instance",
+                    "a Directory instance",
+                    "a RegularFile instance",
+                    "a URI or URL instance",
+                    "a TextResource instance"
+                ).includeLink()
+        })
 
         where:
         annotation     | targetType
@@ -155,10 +195,10 @@ class TaskInputFilePropertiesIntegrationTest extends AbstractIntegrationSpec {
     }
 
     @Issue("https://github.com/gradle/gradle/issues/9674")
-    def "allows @Input of task with no actions to be null"() {
+    def "allows @InputFiles of task with no actions to be null"() {
         buildFile << """
             class FooTask extends DefaultTask {
-               @Input
+               @InputFiles
                FileCollection bar
             }
 
@@ -172,13 +212,16 @@ class TaskInputFilePropertiesIntegrationTest extends AbstractIntegrationSpec {
         executed ":foo"
     }
 
+    @ValidationTestFor(
+        ValidationProblemId.VALUE_NOT_SET
+    )
     @Issue("https://github.com/gradle/gradle/issues/9674")
     def "shows validation error when non-Optional @Input is null"() {
         buildFile << """
             class FooTask extends DefaultTask {
                @InputFiles
                FileCollection bar
-               
+
                @TaskAction
                def go() {
                }
@@ -191,6 +234,6 @@ class TaskInputFilePropertiesIntegrationTest extends AbstractIntegrationSpec {
         fails "foo"
 
         then:
-        failureCauseContains("No value has been specified for property 'bar'.")
+        failureDescriptionContains(missingValueMessage { type('FooTask').property('bar') })
     }
 }

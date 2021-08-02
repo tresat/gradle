@@ -28,6 +28,7 @@ import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.CopyProcessingSpec;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.DuplicatesStrategy;
+import org.gradle.api.file.ExpandDetails;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileCopyDetails;
 import org.gradle.api.file.FileTree;
@@ -39,12 +40,13 @@ import org.gradle.api.internal.file.pattern.PatternMatcher;
 import org.gradle.api.internal.file.pattern.PatternMatcherFactory;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.internal.Actions;
 import org.gradle.internal.Cast;
 import org.gradle.internal.Factory;
 import org.gradle.internal.reflect.Instantiator;
 import org.gradle.internal.typeconversion.NotationParser;
-import org.gradle.util.ClosureBackedAction;
-import org.gradle.util.ConfigureUtil;
+import org.gradle.util.internal.ClosureBackedAction;
+import org.gradle.util.internal.ConfigureUtil;
 
 import javax.annotation.Nullable;
 import javax.inject.Inject;
@@ -428,8 +430,14 @@ public class DefaultCopySpec implements CopySpecInternal {
     }
 
     @Override
-    public CopySpec expand(final Map<String, ?> properties) {
-        appendCopyAction(new MapBackedExpandAction(properties));
+    public CopySpec expand(Map<String, ?> properties) {
+        appendCopyAction(new MapBackedExpandAction(properties, Actions.doNothing()));
+        return this;
+    }
+
+    @Override
+    public CopySpec expand(final Map<String, ?> properties, final Action<? super ExpandDetails> action) {
+        appendCopyAction(new MapBackedExpandAction(properties, action));
         return this;
     }
 
@@ -528,14 +536,16 @@ public class DefaultCopySpec implements CopySpecInternal {
 
     private static class MapBackedExpandAction implements Action<FileCopyDetails> {
         private final Map<String, ?> properties;
+        private final Action<? super ExpandDetails> action;
 
-        public MapBackedExpandAction(Map<String, ?> properties) {
+        public MapBackedExpandAction(Map<String, ?> properties, Action<? super ExpandDetails> action) {
             this.properties = properties;
+            this.action = action;
         }
 
         @Override
         public void execute(FileCopyDetails fileCopyDetails) {
-            fileCopyDetails.expand(properties);
+            fileCopyDetails.expand(properties, action);
         }
     }
 

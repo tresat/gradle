@@ -16,14 +16,13 @@
 
 package org.gradle.internal.taskgraph;
 
-import org.gradle.api.internal.project.taskfactory.TaskIdentity;
 import org.gradle.internal.operations.BuildOperationType;
 import org.gradle.internal.scan.UsedByScanPlugin;
 
 import java.util.List;
 
 /**
- * Computing the task graph based on the inputs and build configuration.
+ * Computing the task graph for a given build in the build tree based on the inputs and build configuration.
  *
  * @since 4.0
  */
@@ -47,7 +46,7 @@ public final class CalculateTaskGraphBuildOperationType implements BuildOperatio
         long getTaskId();
 
     }
-    
+
     /**
      *
      * @since 6.2

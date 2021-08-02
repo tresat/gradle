@@ -15,7 +15,7 @@
  */
 package org.gradle.plugins.ide
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
 import org.gradle.test.fixtures.file.TestFile
 import org.gradle.test.fixtures.server.http.HttpArtifact
@@ -30,7 +30,7 @@ abstract class AbstractSourcesAndJavadocJarsIntegrationTest extends AbstractIdeI
     @Rule
     HttpServer server
 
-    String groovyAllVersion = "1.3-2.5.12"
+    String groovyVersion = "3.0.8"
 
     def setup() {
         server.start()
@@ -54,7 +54,7 @@ abstract class AbstractSourcesAndJavadocJarsIntegrationTest extends AbstractIdeI
         succeeds "resolve"
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "sources and javadoc jars from maven repositories are resolved, attached and cached"() {
         def repo = mavenHttpRepo
         def module = repo.module("some", "module", "1.0")
@@ -87,7 +87,7 @@ dependencies {
         ideFileContainsEntry("module-1.0-api.jar", "module-1.0-sources.jar", "module-1.0-javadoc.jar")
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "ignores missing sources and javadoc jars in maven repositories"() {
         def repo = mavenHttpRepo
         repo.module("some", "module", "1.0").publish().allowAll()
@@ -100,7 +100,7 @@ dependencies {
         ideFileContainsNoSourcesAndJavadocEntry()
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "ignores broken source or javadoc artifacts in maven repository"() {
         def repo = mavenHttpRepo
         def module = repo.module("some", "module", "1.0")
@@ -142,7 +142,7 @@ dependencies {
         succeeds "resolve"
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "sources and javadoc jars from ivy repositories are resolved, attached and cached"() {
         def repo = ivyHttpRepo
         def module = repo.module("some", "module", "1.0")
@@ -165,7 +165,7 @@ dependencies {
         ideFileContainsEntry("module-1.0.jar", "module-1.0-my-sources.jar", "module-1.0-my-javadoc.jar")
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "all sources and javadoc jars resolved from ivy repo are attached to all artifacts for module"() {
         def repo = ivyHttpRepo
         def module = repo.module("some", "module", "1.0")
@@ -199,7 +199,7 @@ dependencies {
         ideFileContainsEntry("module-1.0-tests.jar", sources, javadoc)
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "all sources jars from ivy repositories are attached when there are multiple unclassified artifacts"() {
         def repo = ivyHttpRepo
 
@@ -227,7 +227,7 @@ dependencies {
         ideFileContainsEntry("foo-api-1.0.jar", ["foo-sources-1.0.jar", "foo-api-sources-1.0.jar"], ["foo-javadoc-1.0.jar", "foo-api-javadoc-1.0.jar"])
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "ignores missing sources and javadoc jars in ivy repositories"() {
         def repo = ivyHttpRepo
         final module = repo.module("some", "module", "1.0")
@@ -245,7 +245,7 @@ dependencies {
         ideFileContainsNoSourcesAndJavadocEntry()
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "ignores broken source or javadoc artifacts in ivy repository"() {
         def repo = ivyHttpRepo
         def module = repo.module("some", "module", "1.0")
@@ -271,7 +271,7 @@ dependencies {
         ideFileContainsNoSourcesAndJavadocEntry()
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "sources and javadoc jars stored with maven scheme in ivy repositories are resolved and attached"() {
         def repo = ivyHttpRepo
         def module = repo.module("some", "module", "1.0")
@@ -290,7 +290,7 @@ dependencies {
         ideFileContainsEntry("module-1.0.jar", "module-1.0-sources.jar", "module-1.0-javadoc.jar")
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "sources and javadoc jars from flatdir repositories are resolved and attached"() {
         file("repo/module-1.0.jar").createFile()
         file("repo/module-1.0-sources.jar").createFile()
@@ -304,7 +304,7 @@ dependencies {
         ideFileContainsEntry("module-1.0.jar", "module-1.0-sources.jar", "module-1.0-javadoc.jar")
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     @IgnoreIf({ GradleContextualExecuter.noDaemon || GradleContextualExecuter.embedded })
     def "does not download gradleApi() sources when sources download is disabled"() {
         given:
@@ -330,7 +330,7 @@ dependencies {
         ideFileContainsGradleApi("gradle-api")
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     @IgnoreIf({ GradleContextualExecuter.noDaemon || GradleContextualExecuter.embedded })
     def "does not download gradleApi() sources when offline"() {
         given:
@@ -354,10 +354,10 @@ dependencies {
         ideFileContainsGradleApi("gradle-api")
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "sources for localGroovy() are downloaded and attached"() {
         given:
-        def repo = givenGroovyAllExistsInGradleRepo()
+        def repo = givenGroovyExistsInGradleRepo()
         executer.withEnvironmentVars('GRADLE_LIBS_REPO_OVERRIDE': "$repo.uri/")
 
         buildScript """
@@ -374,13 +374,25 @@ dependencies {
         succeeds ideTask
 
         then:
-        ideFileContainsEntry("groovy-all-${groovyAllVersion}.jar", ["groovy-all-${groovyAllVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-${groovyVersion}.jar", ["groovy-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-ant-${groovyVersion}.jar", ["groovy-ant-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-astbuilder-${groovyVersion}.jar", ["groovy-astbuilder-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-console-${groovyVersion}.jar", ["groovy-console-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-datetime-${groovyVersion}.jar", ["groovy-datetime-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-dateutil-${groovyVersion}.jar", ["groovy-dateutil-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-groovydoc-${groovyVersion}.jar", ["groovy-groovydoc-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-json-${groovyVersion}.jar", ["groovy-json-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-nio-${groovyVersion}.jar", ["groovy-nio-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-sql-${groovyVersion}.jar", ["groovy-sql-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-templates-${groovyVersion}.jar", ["groovy-templates-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-test-${groovyVersion}.jar", ["groovy-test-${groovyVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-xml-${groovyVersion}.jar", ["groovy-xml-${groovyVersion}-sources.jar"], [])
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "sources for localGroovy() are downloaded and attached when using gradleApi()"() {
         given:
-        def repo = givenGroovyAllExistsInGradleRepo()
+        def repo = givenGroovyExistsInGradleRepo()
         executer.withEnvironmentVars('GRADLE_LIBS_REPO_OVERRIDE': "$repo.uri/")
 
         buildScript """
@@ -397,14 +409,14 @@ dependencies {
         succeeds ideTask
 
         then:
-        ideFileContainsEntry("groovy-all-${groovyAllVersion}.jar", ["groovy-all-${groovyAllVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-${groovyVersion}.jar", ["groovy-${groovyVersion}-sources.jar"], [])
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     @IgnoreIf({ GradleContextualExecuter.embedded })
     def "sources for localGroovy() are downloaded and attached when using gradleTestKit()"() {
         given:
-        def repo = givenGroovyAllExistsInGradleRepo()
+        def repo = givenGroovyExistsInGradleRepo()
         executer.withEnvironmentVars('GRADLE_LIBS_REPO_OVERRIDE': "$repo.uri/")
 
         buildScript """
@@ -421,10 +433,10 @@ dependencies {
         succeeds ideTask
 
         then:
-        ideFileContainsEntry("groovy-all-${groovyAllVersion}.jar", ["groovy-all-${groovyAllVersion}-sources.jar"], [])
+        ideFileContainsEntry("groovy-${groovyVersion}.jar", ["groovy-${groovyVersion}-sources.jar"], [])
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "does not download localGroovy() sources when sources download is disabled"() {
         given:
         executer.withEnvironmentVars('GRADLE_LIBS_REPO_OVERRIDE': "$server.uri/")
@@ -449,7 +461,7 @@ dependencies {
         ideFileContainsNoSourcesAndJavadocEntry()
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "does not download localGroovy() sources when offline"() {
         given:
         executer.withEnvironmentVars('GRADLE_LIBS_REPO_OVERRIDE': "$server.uri/")
@@ -480,13 +492,31 @@ dependencies {
         return new TestFile(distribution.gradleHomeDir, "src")
     }
 
-    def givenGroovyAllExistsInGradleRepo() {
+    def givenGroovyExistsInGradleRepo() {
         def repo = mavenHttpRepo
-        def module = repo.module("org.gradle.groovy", "groovy-all", groovyAllVersion)
+        publishGroovyModuleWithSources(repo, "groovy")
+        publishGroovyModuleWithSources(repo, "groovy-ant")
+        publishGroovyModuleWithSources(repo, "groovy-astbuilder")
+        publishGroovyModuleWithSources(repo, "groovy-console")
+        publishGroovyModuleWithSources(repo, "groovy-docgenerator")
+        publishGroovyModuleWithSources(repo, "groovy-datetime")
+        publishGroovyModuleWithSources(repo, "groovy-dateutil")
+        publishGroovyModuleWithSources(repo, "groovy-groovydoc")
+        publishGroovyModuleWithSources(repo, "groovy-json")
+        publishGroovyModuleWithSources(repo, "groovy-nio")
+        publishGroovyModuleWithSources(repo, "groovy-sql")
+        publishGroovyModuleWithSources(repo, "groovy-swing")
+        publishGroovyModuleWithSources(repo, "groovy-templates")
+        publishGroovyModuleWithSources(repo, "groovy-test")
+        publishGroovyModuleWithSources(repo, "groovy-xml")
+        return repo
+    }
+
+    def publishGroovyModuleWithSources(MavenHttpRepository repo, String artifactId) {
+        def module = repo.module("org.codehaus.groovy", artifactId, groovyVersion)
         module.artifact(classifier: "sources")
         module.publish()
         module.allowAll()
-        return repo
     }
 
     private useIvyRepo(def repo) {

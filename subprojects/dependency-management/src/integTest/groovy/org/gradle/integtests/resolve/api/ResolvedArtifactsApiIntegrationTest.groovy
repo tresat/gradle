@@ -17,11 +17,10 @@
 package org.gradle.integtests.resolve.api
 
 import org.gradle.integtests.fixtures.AbstractHttpDependencyResolutionTest
-import org.gradle.integtests.fixtures.FluidDependenciesResolveRunner
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
-import org.junit.runner.RunWith
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
+import org.gradle.integtests.fixtures.extensions.FluidDependenciesResolveTest
 
-@RunWith(FluidDependenciesResolveRunner)
+@FluidDependenciesResolveTest
 class ResolvedArtifactsApiIntegrationTest extends AbstractHttpDependencyResolutionTest {
     def setup() {
         settingsFile << """
@@ -831,7 +830,7 @@ ${showFailuresTask(expression)}
         "incoming.artifactView({lenient(false)}).artifacts"           | _
     }
 
-    @ToBeFixedForInstantExecution(because = "broken file collection")
+    @ToBeFixedForConfigurationCache(because = "broken file collection")
     def "lenient artifact view reports failure to resolve graph and artifacts"() {
         settingsFile << "include 'a', 'b'"
 
@@ -910,7 +909,7 @@ Searched in the following locations:
           - Doesn't say anything about usage (required 'compile')""")
     }
 
-    @ToBeFixedForInstantExecution(because = "broken file collection")
+    @ToBeFixedForConfigurationCache(because = "broken file collection")
     def "successfully resolved local artifacts are built when lenient file view used as task input"() {
         settingsFile << "include 'a', 'b', 'c'"
 

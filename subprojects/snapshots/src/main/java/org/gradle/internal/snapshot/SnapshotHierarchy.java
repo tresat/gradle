@@ -23,7 +23,7 @@ import java.util.Optional;
 /**
  * An immutable hierarchy of snapshots of the file system.
  *
- * Intended to be to store an in-memory representation of the state of the file system.
+ * Intended to store an in-memory representation of the state of the file system.
  */
 public interface SnapshotHierarchy {
 
@@ -33,13 +33,15 @@ public interface SnapshotHierarchy {
     Optional<MetadataSnapshot> getMetadata(String absolutePath);
 
     /**
-     * Returns the complete snapshot stored at the absolute path.
+     * Returns the snapshot stored at the absolute path.
      */
-    default Optional<CompleteFileSystemLocationSnapshot> getSnapshot(String absolutePath) {
+    default Optional<FileSystemLocationSnapshot> getSnapshot(String absolutePath) {
         return getMetadata(absolutePath)
-            .filter(CompleteFileSystemLocationSnapshot.class::isInstance)
-            .map(CompleteFileSystemLocationSnapshot.class::cast);
+            .filter(FileSystemLocationSnapshot.class::isInstance)
+            .map(FileSystemLocationSnapshot.class::cast);
     }
+
+    boolean hasDescendantsUnder(String absolutePath);
 
     /**
      * Returns a hierarchy augmented by the information of the snapshot at the absolute path.
@@ -64,7 +66,7 @@ public interface SnapshotHierarchy {
     void visitSnapshotRoots(String absolutePath, SnapshotVisitor snapshotVisitor);
 
     interface SnapshotVisitor {
-        void visitSnapshotRoot(CompleteFileSystemLocationSnapshot snapshot);
+        void visitSnapshotRoot(FileSystemLocationSnapshot snapshot);
     }
 
     /**
@@ -99,10 +101,10 @@ public interface SnapshotHierarchy {
     }
 
     /**
-     * Listens to diffs to {@link CompleteFileSystemLocationSnapshot}s during an update of {@link SnapshotHierarchy}.
+     * Listens to diffs to {@link FileSystemLocationSnapshot}s during an update of {@link SnapshotHierarchy}.
      *
      * Similar to {@link NodeDiffListener}, only that
-     * - it listens for {@link CompleteFileSystemLocationSnapshot}s and not {@link FileSystemNode}s.
+     * - it listens for {@link FileSystemLocationSnapshot}s and not {@link FileSystemNode}s.
      * - it receives all the changes for one update at once.
      */
     interface SnapshotDiffListener {
@@ -113,6 +115,6 @@ public interface SnapshotHierarchy {
          *
          * Only the roots of added/removed hierarchies are reported.
          */
-        void changed(Collection<CompleteFileSystemLocationSnapshot> removedSnapshots, Collection<CompleteFileSystemLocationSnapshot> addedSnapshots);
+        void changed(Collection<FileSystemLocationSnapshot> removedSnapshots, Collection<FileSystemLocationSnapshot> addedSnapshots);
     }
 }

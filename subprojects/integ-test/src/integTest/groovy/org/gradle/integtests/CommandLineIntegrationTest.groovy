@@ -23,7 +23,7 @@ import org.gradle.internal.jvm.Jvm
 import org.gradle.internal.os.OperatingSystem
 import org.gradle.test.fixtures.file.TestFile
 import org.gradle.testfixtures.internal.NativeServicesTestFixture
-import org.gradle.util.GFileUtils
+import org.gradle.util.internal.GFileUtils
 import org.gradle.util.PreconditionVerifier
 import org.gradle.util.Requires
 import org.gradle.util.TestPrecondition
@@ -88,7 +88,11 @@ class CommandLineIntegrationTest extends AbstractIntegrationTest {
         Assume.assumeFalse(GradleContextualExecuter.embedded)
 
         def failure = executer.withEnvironmentVars('JAVA_HOME': testDirectory).withTasks('checkJavaHome').runWithFailure()
-        assert failure.output.contains('ERROR: JAVA_HOME is set to an invalid directory')
+        if (OperatingSystem.current().isWindows()) {
+            assert failure.output.contains('ERROR: JAVA_HOME is set to an invalid directory')
+        } else {
+            assert failure.error.contains('ERROR: JAVA_HOME is set to an invalid directory')
+        }
     }
 
     @Test
@@ -109,7 +113,7 @@ class CommandLineIntegrationTest extends AbstractIntegrationTest {
             }
 
             def failure = executer.withEnvironmentVars('PATH': path, 'JAVA_HOME': '').withTasks('checkJavaHome').runWithFailure()
-            assert failure.output.contains("ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.")
+            assert failure.error.contains("ERROR: JAVA_HOME is not set and no 'java' command could be found in your PATH.")
         } finally {
             links.each {
                 new File(getTestDirectory(), "fake-bin/$it").delete()

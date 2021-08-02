@@ -17,9 +17,9 @@
 package org.gradle.language.base
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 
-@UnsupportedWithInstantExecution(because = "software model")
+@UnsupportedWithConfigurationCache(because = "software model")
 class CustomComponentPluginIntegrationTest extends AbstractIntegrationSpec {
     def "setup"() {
         buildFile << """
@@ -158,7 +158,7 @@ model {
         output.contains """> Task :components
 
 ------------------------------------------------------------
-Root project
+Root project 'custom-component'
 ------------------------------------------------------------
 
 SampleComponent 'sampleLib'

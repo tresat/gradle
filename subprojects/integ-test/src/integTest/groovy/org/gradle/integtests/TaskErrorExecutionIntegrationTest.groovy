@@ -16,9 +16,16 @@
 package org.gradle.integtests
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
+import org.gradle.internal.reflect.problems.ValidationProblemId
+import org.gradle.internal.reflect.validation.ValidationMessageChecker
+import org.gradle.internal.reflect.validation.ValidationTestFor
 import org.gradle.test.fixtures.file.TestFile
 
-class TaskErrorExecutionIntegrationTest extends AbstractIntegrationSpec {
+class TaskErrorExecutionIntegrationTest extends AbstractIntegrationSpec implements ValidationMessageChecker {
+    def setup() {
+        expectReindentedValidationMessage()
+    }
+
     def reportsTaskActionExecutionFailsWithError() {
         buildFile << """
             task('do-stuff').doFirst {
@@ -101,24 +108,27 @@ class TaskErrorExecutionIntegrationTest extends AbstractIntegrationSpec {
         failure.assertHasCause("broken")
     }
 
+    @ValidationTestFor(
+        ValidationProblemId.VALUE_NOT_SET
+    )
     def reportsTaskValidationFailure() {
         buildFile << '''
             class CustomTask extends DefaultTask {
                 @InputFile File srcFile
                 @OutputFile File destFile
-                
+
                 @TaskAction
                 void action() {}
             }
-            
+
             task custom(type: CustomTask)
         '''
         expect:
         fails "custom"
 
-        failure.assertHasDescription("Some problems were found with the configuration of task ':custom' (type 'CustomTask').")
-        failure.assertHasCause("No value has been specified for property 'srcFile'.")
-        failure.assertHasCause("No value has been specified for property 'destFile'.")
+        failureDescriptionContains("Some problems were found with the configuration of task ':custom' (type 'CustomTask').")
+        failureDescriptionContains(missingValueMessage { type('CustomTask').property('srcFile') })
+        failureDescriptionContains(missingValueMessage { type('CustomTask').property('destFile') })
     }
 
     def reportsUnknownTask() {
@@ -137,18 +147,30 @@ class TaskErrorExecutionIntegrationTest extends AbstractIntegrationSpec {
 
         then:
         failure.assertHasDescription("Task 'someTest' not found in root project 'test'. Some candidates are: 'someTask', 'someTaskA', 'someTaskB'.")
-        failure.assertHasResolution("Run gradle tasks to get a list of available tasks. Run with --info or --debug option to get more log output. Run with --scan to get full insights.")
+        failure.assertHasResolutions(
+            "Run gradle tasks to get a list of available tasks.",
+            "Run with --info or --debug option to get more log output.",
+            "Run with --scan to get full insights.",
+        )
 
         when:
         fails ":someTest"
         then:
         failure.assertHasDescription("Task 'someTest' not found in root project 'test'. Some candidates are: 'someTask'.")
-        failure.assertHasResolution("Run gradle tasks to get a list of available tasks. Run with --info or --debug option to get more log output. Run with --scan to get full insights.")
+        failure.assertHasResolutions(
+            "Run gradle tasks to get a list of available tasks.",
+            "Run with --info or --debug option to get more log output.",
+            "Run with --scan to get full insights.",
+        )
 
         when:
         fails "a:someTest"
         then:
         failure.assertHasDescription("Task 'someTest' not found in project ':a'. Some candidates are: 'someTask', 'someTaskA'.")
-        failure.assertHasResolution("Run gradle tasks to get a list of available tasks. Run with --info or --debug option to get more log output. Run with --scan to get full insights.")
+        failure.assertHasResolutions(
+            "Run gradle tasks to get a list of available tasks.",
+            "Run with --info or --debug option to get more log output.",
+            "Run with --scan to get full insights.",
+        )
     }
 }

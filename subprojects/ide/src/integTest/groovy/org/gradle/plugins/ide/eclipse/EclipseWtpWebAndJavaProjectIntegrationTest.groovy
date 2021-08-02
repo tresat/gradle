@@ -16,10 +16,10 @@
 
 package org.gradle.plugins.ide.eclipse
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 
 class EclipseWtpWebAndJavaProjectIntegrationTest extends AbstractEclipseIntegrationSpec {
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "generates configuration files for web project and java project it depends on"() {
         settingsFile << "include 'web', 'java'"
 
@@ -31,7 +31,7 @@ class EclipseWtpWebAndJavaProjectIntegrationTest extends AbstractEclipseIntegrat
         """subprojects {
                apply plugin: 'eclipse-wtp'
 
-              ${jcenterRepository()}
+               ${mavenCentralRepository()}
            }
            project(':web') {
                apply plugin: 'war'

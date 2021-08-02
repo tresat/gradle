@@ -16,24 +16,22 @@
 
 package org.gradle.internal.watch.registry.impl
 
+import net.rubygrapefruit.platform.file.FileSystemInfo
 import net.rubygrapefruit.platform.file.FileWatcher
 import org.gradle.internal.file.FileMetadata.AccessType
 import org.gradle.internal.snapshot.MissingFileSnapshot
 import org.gradle.internal.watch.registry.FileWatcherUpdater
 import org.gradle.test.fixtures.file.TestFile
-import org.gradle.util.Requires
-import org.gradle.util.TestPrecondition
 
-import java.nio.file.Paths
-import java.util.function.Predicate
+import java.util.stream.Stream
 
 import static org.gradle.internal.watch.registry.impl.HierarchicalFileWatcherUpdater.FileSystemLocationToWatchValidator.NO_VALIDATION
 
 class HierarchicalFileWatcherUpdaterTest extends AbstractFileWatcherUpdaterTest {
 
     @Override
-    FileWatcherUpdater createUpdater(FileWatcher watcher, Predicate<String> watchFilter) {
-        new HierarchicalFileWatcherUpdater(watcher, NO_VALIDATION, watchFilter)
+    FileWatcherUpdater createUpdater(FileWatcher watcher, WatchableHierarchies watchableHierarchies) {
+        new HierarchicalFileWatcherUpdater(watcher, NO_VALIDATION, watchableHierarchies)
     }
 
     def "does not watch hierarchy to watch if no snapshot is inside"() {
@@ -167,18 +165,16 @@ class HierarchicalFileWatcherUpdaterTest extends AbstractFileWatcherUpdaterTest 
         0 * _
     }
 
-    def "only adds watches for the roots of the hierarchies to watch"() {
-        def firstDir = file("first").createDir()
-        def secondDir = file("second").createDir()
-        def directoryWithinFirst = file("first/within").createDir()
+    def "watch only outermost hierarchy"() {
+        def outerDir = file("outer").createDir()
+        def innerDirBefore = file("outer/inner1").createDir()
+        def innerDirAfter = file("outer/inner2").createDir()
 
         when:
-        registerWatchableHierarchies([firstDir, directoryWithinFirst, secondDir])
-        addSnapshotsInWatchableHierarchies([secondDir, directoryWithinFirst])
+        registerWatchableHierarchies([innerDirBefore, outerDir, innerDirAfter])
+        addSnapshotsInWatchableHierarchies([outerDir, innerDirAfter, innerDirBefore])
         then:
-        [firstDir, secondDir].each { watchableHierarchy ->
-            1 * watcher.startWatching({ equalIgnoringOrder(it, [watchableHierarchy]) })
-        }
+        1 * watcher.startWatching({ equalIgnoringOrder(it, [outerDir]) })
         0 * _
     }
 
@@ -188,7 +184,7 @@ class HierarchicalFileWatcherUpdaterTest extends AbstractFileWatcherUpdaterTest 
         def directoryWithinFirst = file("first/within").createDir()
 
         when:
-        registerWatchableHierarchies([firstDir, directoryWithinFirst, secondDir])
+        registerWatchableHierarchies([directoryWithinFirst, firstDir, secondDir])
         addSnapshotsInWatchableHierarchies([secondDir, directoryWithinFirst])
         then:
         [firstDir, secondDir].each { watchableHierarchy ->
@@ -303,6 +299,7 @@ class HierarchicalFileWatcherUpdaterTest extends AbstractFileWatcherUpdaterTest 
         when:
         missingFile.createFile()
         addSnapshot(snapshotRegularFile(missingFile))
+        buildFinished()
         then:
         1 * watcher.stopWatching({ equalIgnoringOrder(it, [rootDir]) })
         then:
@@ -310,40 +307,37 @@ class HierarchicalFileWatcherUpdaterTest extends AbstractFileWatcherUpdaterTest 
         0 * _
     }
 
-    @Requires(TestPrecondition.UNIX_DERIVATIVE)
-    def "resolves recursive UNIX roots #directories to #resolvedRoots"() {
-        expect:
-        resolveRecursiveRoots(directories) == resolvedRoots
+    def "removes content on unsupported file systems at the end of the build"() {
+        def watchableHierarchy = file("watchable").createDir()
+        def watchableContent = watchableHierarchy.file("some/dir/file.txt").createFile()
+        def unsupportedFileSystemMountPoint = watchableHierarchy.file("unsupported")
+        def unwatchableContent = unsupportedFileSystemMountPoint.file("some/file.txt").createFile()
+        def unsupportedFileSystem = Stub(FileSystemInfo) {
+            getMountPoint() >> unsupportedFileSystemMountPoint
+            getFileSystemType() >> "unsupported"
+        }
+        watchableFileSystemDetector.detectUnsupportedFileSystems() >> Stream.of(unsupportedFileSystem)
 
-        where:
-        directories        | resolvedRoots
-        []                 | []
-        ["/a"]             | ["/a"]
-        ["/a", "/b"]       | ["/a", "/b"]
-        ["/a", "/a/b"]     | ["/a"]
-        ["/a/b", "/a"]     | ["/a"]
-        ["/a", "/a/b/c/d"] | ["/a"]
-        ["/a/b/c/d", "/a"] | ["/a"]
-        ["/a", "/b/a"]     | ["/a", "/b/a"]
-        ["/b/a", "/a"]     | ["/a", "/b/a"]
-    }
+        when:
+        registerWatchableHierarchies([watchableHierarchy])
+        addSnapshot(snapshotRegularFile(watchableContent))
+        then:
+        vfsHasSnapshotsAt(watchableContent)
+        1 * watcher.startWatching([watchableHierarchy])
+        0 * _
 
-    @Requires(TestPrecondition.WINDOWS)
-    def "resolves recursive Windows roots #directories to #resolvedRoots"() {
-        expect:
-        resolveRecursiveRoots(directories) == resolvedRoots
+        when:
+        addSnapshot(snapshotRegularFile(unwatchableContent))
+        then:
+        vfsHasSnapshotsAt(unwatchableContent)
+        0 * _
 
-        where:
-        directories                 | resolvedRoots
-        []                          | []
-        ["C:\\a"]                   | ["C:\\a"]
-        ["C:\\a", "C:\\b"]          | ["C:\\a", "C:\\b"]
-        ["C:\\a", "C:\\a\\b"]       | ["C:\\a"]
-        ["C:\\a\\b", "C:\\a"]       | ["C:\\a"]
-        ["C:\\a", "C:\\a\\b\\c\\d"] | ["C:\\a"]
-        ["C:\\a\\b\\c\\d", "C:\\a"] | ["C:\\a"]
-        ["C:\\a", "C:\\b\\a"]       | ["C:\\a", "C:\\b\\a"]
-        ["C:\\b\\a", "C:\\a"]       | ["C:\\a", "C:\\b\\a"]
+        when:
+        buildFinished()
+        then:
+        vfsHasSnapshotsAt(watchableContent)
+        !vfsHasSnapshotsAt(unwatchableContent)
+        0 * _
     }
 
     MissingFileSnapshot missingFileSnapshot(File location) {
@@ -356,11 +350,5 @@ class HierarchicalFileWatcherUpdaterTest extends AbstractFileWatcherUpdaterTest 
             addSnapshot(snapshotRegularFile(fileInside))
             return fileInside.parentFile
         }
-    }
-
-    private static List<String> resolveRecursiveRoots(List<String> directories) {
-        HierarchicalFileWatcherUpdater.resolveHierarchiesToWatch(directories.collect { Paths.get(it) } as Set)
-            .collect { it.toString() }
-            .sort()
     }
 }

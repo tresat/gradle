@@ -18,7 +18,9 @@ package org.gradle.initialization.exception;
 
 import org.gradle.execution.MultipleBuildFailures;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -32,24 +34,31 @@ public class MultipleBuildFailuresExceptionAnalyser implements ExceptionAnalyser
     }
 
     @Override
-    public RuntimeException transform(Throwable exception) {
-        List<Throwable> failures = new ArrayList<Throwable>();
-        if (exception instanceof MultipleBuildFailures) {
-            MultipleBuildFailures multipleBuildFailures = (MultipleBuildFailures) exception;
-            for (Throwable cause : multipleBuildFailures.getCauses()) {
-                collector.collectFailures(cause, failures);
+    public RuntimeException transform(Throwable failure) {
+        return transform(Collections.singletonList(failure));
+    }
+
+    @Nullable
+    @Override
+    public RuntimeException transform(List<Throwable> failures) {
+        if (failures.isEmpty()) {
+            return null;
+        }
+
+        List<Throwable> result = new ArrayList<>(failures.size());
+        for (Throwable failure : failures) {
+            if (failure instanceof MultipleBuildFailures) {
+                for (Throwable cause : ((MultipleBuildFailures) failure).getCauses()) {
+                    collector.collectFailures(cause, result);
+                }
+            } else {
+                collector.collectFailures(failure, result);
             }
-            if (failures.size() == 1 && failures.get(0) instanceof RuntimeException) {
-                return (RuntimeException) failures.get(0);
-            }
-            multipleBuildFailures.replaceCauses(failures);
-            return multipleBuildFailures;
+        }
+        if (result.size() == 1 && result.get(0) instanceof RuntimeException) {
+            return (RuntimeException) result.get(0);
         } else {
-            collector.collectFailures(exception, failures);
-            if (failures.size() == 1 && failures.get(0) instanceof RuntimeException) {
-                return (RuntimeException) failures.get(0);
-            }
-            return new MultipleBuildFailures(failures);
+            return new MultipleBuildFailures(result);
         }
     }
 }

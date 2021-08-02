@@ -17,7 +17,7 @@
 package org.gradle.api.tasks
 
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.UnsupportedWithInstantExecution
+import org.gradle.integtests.fixtures.UnsupportedWithConfigurationCache
 import org.gradle.internal.os.OperatingSystem
 import org.gradle.process.internal.util.LongCommandLineDetectionUtil
 import spock.lang.Unroll
@@ -43,7 +43,7 @@ class JavaExecWithLongCommandLineIntegrationTest extends AbstractIntegrationSpec
             task run(type: JavaExec) {
                 classpath = sourceSets.main.runtimeClasspath
                 classpath extraClasspath
-                main "driver.Driver"
+                mainClass = "driver.Driver"
             }
 
             task runWithJavaExec {
@@ -54,7 +54,7 @@ class JavaExecWithLongCommandLineIntegrationTest extends AbstractIntegrationSpec
                             executable run.executable
                         }
                         classpath = run.classpath
-                        main run.main
+                        mainClass = run.mainClass
                         args run.args
                     }
                 }
@@ -64,7 +64,7 @@ class JavaExecWithLongCommandLineIntegrationTest extends AbstractIntegrationSpec
                 dependsOn sourceSets.main.runtimeClasspath
                 def runExecutable = run.executable ? run.executable : null
                 def runClasspath = run.classpath
-                def runMain = run.main
+                def runMain = run.mainClass
                 def runArgs = run.args
                 def execOps = services.get(ExecOperations)
                 doLast {
@@ -73,7 +73,7 @@ class JavaExecWithLongCommandLineIntegrationTest extends AbstractIntegrationSpec
                            executable = runExecutable
                         }
                         classpath = runClasspath
-                        main runMain
+                        mainClass = runMain
                         args runArgs
                     }
                 }
@@ -82,7 +82,7 @@ class JavaExecWithLongCommandLineIntegrationTest extends AbstractIntegrationSpec
     }
 
     @Unroll
-    @UnsupportedWithInstantExecution(iterationMatchers = ".* project.javaexec")
+    @UnsupportedWithConfigurationCache(iterationMatchers = ".* project.javaexec")
     def "still fail when classpath doesn't shorten the command line enough with #method"() {
         def veryLongCommandLineArgs = getLongCommandLine(getMaxArgs() * 16)
         buildFile << """
@@ -105,7 +105,7 @@ class JavaExecWithLongCommandLineIntegrationTest extends AbstractIntegrationSpec
     }
 
     @Unroll
-    @UnsupportedWithInstantExecution(iterationMatchers = ".* project.javaexec")
+    @UnsupportedWithConfigurationCache(iterationMatchers = ".* project.javaexec")
     def "does not suggest long command line failures when execution fails with #method"() {
         buildFile << """
             extraClasspath.from('${veryLongFileNames.join("','")}')
@@ -127,7 +127,7 @@ class JavaExecWithLongCommandLineIntegrationTest extends AbstractIntegrationSpec
     }
 
     @Unroll
-    @UnsupportedWithInstantExecution(iterationMatchers = ".* project.javaexec")
+    @UnsupportedWithConfigurationCache(iterationMatchers = ".* project.javaexec")
     def "does not suggest long command line failures when execution fails for short command line with #method"() {
         buildFile << """
             run.executable 'does-not-exist'
@@ -148,7 +148,7 @@ class JavaExecWithLongCommandLineIntegrationTest extends AbstractIntegrationSpec
     }
 
     @Unroll
-    @UnsupportedWithInstantExecution(iterationMatchers = ".* project.javaexec")
+    @UnsupportedWithConfigurationCache(iterationMatchers = ".* project.javaexec")
     def "succeeds with long classpath with #method"() {
         buildFile << """
             extraClasspath.from('${veryLongFileNames.join("','")}')

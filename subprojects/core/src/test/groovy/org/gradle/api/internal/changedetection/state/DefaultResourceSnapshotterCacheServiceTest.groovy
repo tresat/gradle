@@ -18,11 +18,12 @@ package org.gradle.api.internal.changedetection.state
 
 import org.gradle.internal.file.FileMetadata
 import org.gradle.internal.file.impl.DefaultFileMetadata
+import org.gradle.internal.fingerprint.hashing.ResourceHasher
 import org.gradle.internal.hash.HashCode
 import org.gradle.internal.hash.Hashing
 import org.gradle.internal.serialize.HashCodeSerializer
 import org.gradle.internal.snapshot.RegularFileSnapshot
-import org.gradle.testfixtures.internal.InMemoryIndexedCache
+import org.gradle.testfixtures.internal.TestInMemoryPersistentIndexedCache
 import spock.lang.Specification
 
 
@@ -30,15 +31,16 @@ class DefaultResourceSnapshotterCacheServiceTest extends Specification {
     def delegate = Mock(ResourceHasher)
     def path = "some"
     def snapshot = new RegularFileSnapshot(path, "path", HashCode.fromInt(456), DefaultFileMetadata.file(3456, 456, FileMetadata.AccessType.DIRECT))
-    def snapshotterCache = new DefaultResourceSnapshotterCacheService(new InMemoryIndexedCache(new HashCodeSerializer()))
+    def snapshotContext = new DefaultRegularFileSnapshotContext({path}, snapshot)
+    def snapshotterCache = new DefaultResourceSnapshotterCacheService(new TestInMemoryPersistentIndexedCache(new HashCodeSerializer()))
 
     def "returns result from delegate"() {
         def expectedHash = HashCode.fromInt(123)
 
         when:
-        def actualHash = snapshotterCache.hashFile(snapshot, delegate, configurationHash)
+        def actualHash = snapshotterCache.hashFile(snapshotContext, delegate, configurationHash)
         then:
-        1 * delegate.hash(snapshot) >> expectedHash
+        1 * delegate.hash(snapshotContext) >> expectedHash
         actualHash == expectedHash
         0 * _
     }
@@ -46,14 +48,14 @@ class DefaultResourceSnapshotterCacheServiceTest extends Specification {
     def "caches the result"() {
         def expectedHash = HashCode.fromInt(123)
         when:
-        def actualHash = snapshotterCache.hashFile(snapshot, delegate, configurationHash)
+        def actualHash = snapshotterCache.hashFile(snapshotContext, delegate, configurationHash)
         then:
-        1 * delegate.hash(snapshot) >> expectedHash
+        1 * delegate.hash(snapshotContext) >> expectedHash
         actualHash == expectedHash
         0 * _
 
         when:
-        actualHash = snapshotterCache.hashFile(snapshot, delegate, configurationHash)
+        actualHash = snapshotterCache.hashFile(snapshotContext, delegate, configurationHash)
         then:
         actualHash == expectedHash
         0 * _
@@ -62,14 +64,14 @@ class DefaultResourceSnapshotterCacheServiceTest extends Specification {
     def "caches 'no signature' results too"() {
         def noSignature = null
         when:
-        def actualHash = snapshotterCache.hashFile(snapshot, delegate, configurationHash)
+        def actualHash = snapshotterCache.hashFile(snapshotContext, delegate, configurationHash)
         then:
-        1 * delegate.hash(snapshot) >> noSignature
+        1 * delegate.hash(snapshotContext) >> noSignature
         actualHash == noSignature
         0 * _
 
         when:
-        actualHash = snapshotterCache.hashFile(snapshot, delegate, configurationHash)
+        actualHash = snapshotterCache.hashFile(snapshotContext, delegate, configurationHash)
         then:
         actualHash == noSignature
         0 * _

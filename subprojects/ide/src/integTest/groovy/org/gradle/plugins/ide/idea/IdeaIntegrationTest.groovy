@@ -22,7 +22,7 @@ import org.custommonkey.xmlunit.ElementNameAndAttributeQualifier
 import org.custommonkey.xmlunit.XMLAssert
 import org.gradle.api.internal.artifacts.ivyservice.CacheLayout
 import org.gradle.integtests.fixtures.TestResources
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.plugins.ide.AbstractIdeIntegrationTest
 import org.gradle.test.fixtures.file.TestFile
 import org.junit.ComparisonFailure
@@ -36,23 +36,27 @@ class IdeaIntegrationTest extends AbstractIdeIntegrationTest {
     public final TestResources testResources = new TestResources(testDirectoryProvider)
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void mergesMetadataFilesCorrectly() {
-        file("master/settings.gradle") << ""
-        def buildFile = file("master/build.gradle")
+        file("settings.gradle") << """
+            rootProject.name = "master"
+        """
+        def buildFile = file("build.gradle")
         buildFile << """
-apply plugin: 'java'
-apply plugin: 'idea'
-"""
+            plugins {
+                id("java")
+                id("idea")
+            }
+        """
 
         //given
-        executer.usingBuildScript(buildFile).withTasks('idea').run()
-        def projectContent = getFile([:], 'master/master.ipr').text
-        def moduleContent = getFile([:], 'master/master.iml').text
+        executer.withTasks('idea').run()
+        def projectContent = getFile([:], 'master.ipr').text
+        def moduleContent = getFile([:], 'master.iml').text
 
-        executer.usingBuildScript(buildFile).withTasks('idea').run()
-        def projectContentAfterMerge = getFile([:], 'master/master.ipr').text
-        def moduleContentAfterMerge = getFile([:], 'master/master.iml').text
+        executer.withTasks('idea').run()
+        def projectContentAfterMerge = getFile([:], 'master.ipr').text
+        def moduleContentAfterMerge = getFile([:], 'master.iml').text
 
         //then
         assert projectContent == projectContentAfterMerge
@@ -60,7 +64,7 @@ apply plugin: 'idea'
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void canCreateAndDeleteMetaData() {
         executer.withTasks('idea').run()
 
@@ -74,7 +78,7 @@ apply plugin: 'idea'
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void worksWithAnEmptyProject() {
         executer.withTasks('idea').run()
 
@@ -83,7 +87,7 @@ apply plugin: 'idea'
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void worksWithASubProjectThatDoesNotHaveTheIdeaPluginApplied() {
         executer.withTasks('idea').run()
 
@@ -91,8 +95,10 @@ apply plugin: 'idea'
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void worksWithNonStandardLayout() {
+        executer.expectDocumentedDeprecationWarning("Subproject ':a_child' has location '${file("a child project").absolutePath}' which is outside of the project root. This behaviour has been deprecated and is scheduled to be removed in Gradle 8.0. Consult the upgrading guide for further information: https://docs.gradle.org/current/userguide/upgrading_version_7.html#deprecated_flat_project_structure")
+        executer.expectDocumentedDeprecationWarning("Subproject ':top-level' has location '${file().absolutePath}' which is outside of the project root. This behaviour has been deprecated and is scheduled to be removed in Gradle 8.0. Consult the upgrading guide for further information: https://docs.gradle.org/current/userguide/upgrading_version_7.html#deprecated_flat_project_structure")
         executer.inDirectory(testDirectory.file('root')).withTasks('idea').run()
 
         assertHasExpectedContents('root/root.ipr')
@@ -101,7 +107,7 @@ apply plugin: 'idea'
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void overwritesExistingDependencies() {
         executer.withTasks('idea').run()
 
@@ -109,7 +115,7 @@ apply plugin: 'idea'
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void addsScalaSdkAndCompilerLibraries() {
         executer.withTasks('idea').run()
 
@@ -121,7 +127,7 @@ apply plugin: 'idea'
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void addsScalaFacetAndCompilerLibraries() {
         executer.withTasks('idea').run()
 
@@ -133,7 +139,7 @@ apply plugin: 'idea'
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void outputDirsDefaultToToIdeaDefaults() {
         runIdeaTask("apply plugin: 'java'; apply plugin: 'idea'")
 
@@ -142,7 +148,7 @@ apply plugin: 'idea'
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void canHandleCircularModuleDependencies() {
         def repoDir = file("repo")
         def artifact1 = maven(repoDir).module("myGroup", "myArtifact1").dependsOnModules("myArtifact2").publish().artifactFile
@@ -168,7 +174,7 @@ dependencies {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void libraryReferenceSubstitutesPathVariable() {
         def repoDir = file("repo")
         def artifact1 = maven(repoDir).module("myGroup", "myArtifact1").publish().artifactFile
@@ -199,7 +205,7 @@ dependencies {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void onlyAddsSourceDirsThatExistOnFileSystem() {
         runIdeaTask """
 apply plugin: "java"
@@ -225,7 +231,7 @@ sourceSets.test.groovy.srcDirs.each { it.mkdirs() }
 
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void triggersWithXmlConfigurationHooks() {
         runIdeaTask '''
 apply plugin: 'java'
@@ -246,7 +252,7 @@ tasks.idea {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void respectsPerConfigurationExcludes() {
         def repoDir = file("repo")
         maven(repoDir).module("myGroup", "myArtifact1").dependsOnModules("myArtifact2").publish()
@@ -275,7 +281,7 @@ dependencies {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void respectsPerDependencyExcludes() {
         def repoDir = file("repo")
         maven(repoDir).module("myGroup", "myArtifact1").dependsOnModules("myArtifact2").publish()
@@ -302,7 +308,7 @@ dependencies {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void allowsCustomOutputFolders() {
         runIdeaTask """
 apply plugin: 'java'
@@ -323,7 +329,7 @@ idea.module {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void dslSupportsShortFormsForModule() {
         runTask('idea', """
 apply plugin: 'idea'
@@ -345,7 +351,7 @@ idea.module {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void dslSupportsShortFormsForProject() {
         runTask('idea', """
 apply plugin: 'idea'
@@ -367,7 +373,7 @@ idea.project {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void showDecentMessageWhenInputFileWasTinkeredWith() {
         //given
         file('root.iml') << 'messed up iml file'
@@ -386,7 +392,7 @@ apply plugin: "idea"
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void hasDefaultProjectLanguageLevelIfNoJavaPluginApplied() {
         //given
         file('build.gradle') << '''
@@ -409,7 +415,7 @@ apply plugin: "idea"
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void canAddProjectLibraries() {
         runTask("idea", """
 apply plugin: 'idea'
@@ -425,20 +431,6 @@ idea.project {
 """)
 
         hasProjectLibrary("root.ipr", "someLib", ["someClasses.jar"], ["someJavadoc.jar"], ["someSources.jar"], [])
-    }
-
-    // We don't currently support generating an IDEA project from a software model component
-    @Test
-    @ToBeFixedForInstantExecution
-    void "does not explode if only ScalaLanguagePlugin is applied"() {
-        executer.expectDocumentedDeprecationWarning("The scala-lang plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. " +
-            "Consult the upgrading guide for further information: https://docs.gradle.org/current/userguide/upgrading_version_6.html#upgrading_jvm_plugins")
-        executer.expectDocumentedDeprecationWarning("The jvm-resources plugin has been deprecated. This is scheduled to be removed in Gradle 7.0. " +
-            "Consult the upgrading guide for further information: https://docs.gradle.org/current/userguide/upgrading_version_6.html#upgrading_jvm_plugins")
-        runTask("idea", """
-apply plugin: 'idea'
-apply plugin: 'org.gradle.scala-lang'
-""")
     }
 
     private void assertHasExpectedContents(String path) {

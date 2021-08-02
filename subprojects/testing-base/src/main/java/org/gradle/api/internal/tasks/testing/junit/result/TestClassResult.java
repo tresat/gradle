@@ -84,7 +84,6 @@ public class TestClassResult {
         return failuresCount;
     }
 
-
     public int getSkippedCount() {
         return skippedCount;
     }
@@ -101,5 +100,15 @@ public class TestClassResult {
 
     public void setStartTime(long startTime) {
         this.startTime = startTime;
+    }
+
+    String getXmlTestSuiteName() {
+        return hasDefaultDisplayName() ? className : classDisplayName;
+    }
+
+    private boolean hasDefaultDisplayName() {
+        // both JUnit Jupiter and Vintage use the simple class name as the default display name
+        // so we use this as a heuristic to determine whether the display name was customized
+        return className.endsWith("." + classDisplayName) || className.endsWith("$" + classDisplayName);
     }
 }

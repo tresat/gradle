@@ -17,10 +17,10 @@
 package org.gradle.launcher.continuous
 
 import org.gradle.integtests.fixtures.AbstractContinuousIntegrationTest
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.test.fixtures.TestDeploymentFixture
 
-import static org.gradle.util.CollectionUtils.single
+import static org.gradle.util.internal.CollectionUtils.single
 
 class DeploymentContinuousBuildIntegrationTest extends AbstractContinuousIntegrationTest {
     def fixture = new TestDeploymentFixture()
@@ -30,7 +30,7 @@ class DeploymentContinuousBuildIntegrationTest extends AbstractContinuousIntegra
         buildTimeout = 30
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "deployment promoted to continuous build reports accurate build time" () {
         when:
         withoutContinuousBuild()
@@ -43,7 +43,7 @@ class DeploymentContinuousBuildIntegrationTest extends AbstractContinuousIntegra
         buildTimes[0] >= buildTimes[1]
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "deployment in continuous build reports accurate build time" () {
         when:
         succeeds("runDeployment")

@@ -19,28 +19,32 @@ package org.gradle.execution.plan
 import org.gradle.api.BuildCancelledException
 import org.gradle.api.CircularReferenceException
 import org.gradle.api.Task
+import org.gradle.api.internal.DocumentationRegistry
 import org.gradle.api.internal.TaskInternal
 import org.gradle.api.internal.tasks.WorkNodeAction
 import org.gradle.api.specs.Spec
 import org.gradle.api.tasks.TaskDependency
 import org.gradle.composite.internal.IncludedBuildTaskGraph
+import org.gradle.internal.file.Stat
 import org.gradle.internal.resources.ResourceLockState
 import org.gradle.internal.work.WorkerLeaseRegistry
-import org.gradle.util.TextUtil
+import org.gradle.util.Path
+import org.gradle.util.internal.TextUtil
 import spock.lang.Issue
 import spock.lang.Unroll
 
-import static org.gradle.util.TextUtil.toPlatformLineSeparators
-import static org.gradle.util.WrapUtil.toList
+import static org.gradle.internal.snapshot.CaseSensitivity.CASE_SENSITIVE
+import static org.gradle.util.internal.TextUtil.toPlatformLineSeparators
+import static org.gradle.util.internal.WrapUtil.toList
 
 class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
     DefaultExecutionPlan executionPlan
     def workerLease = Mock(WorkerLeaseRegistry.WorkerLease)
 
     def setup() {
-        def taskNodeFactory = new TaskNodeFactory(thisBuild, Stub(IncludedBuildTaskGraph))
+        def taskNodeFactory = new TaskNodeFactory(thisBuild, Stub(DocumentationRegistry), Stub(IncludedBuildTaskGraph))
         def dependencyResolver = new TaskDependencyResolver([new TaskNodeDependencyResolver(taskNodeFactory)])
-        executionPlan = new DefaultExecutionPlan(thisBuild, taskNodeFactory, dependencyResolver)
+        executionPlan = new DefaultExecutionPlan(Path.ROOT.toString(), taskNodeFactory, dependencyResolver, nodeValidator, new ExecutionNodeAccessHierarchy(CASE_SENSITIVE, Stub(Stat)), new ExecutionNodeAccessHierarchy(CASE_SENSITIVE, Stub(Stat)))
         _ * workerLease.tryLock() >> true
     }
 
@@ -577,6 +581,26 @@ class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
 """)
     }
 
+    @Issue("https://github.com/gradle/gradle/issues/2293")
+    def "circular dependency detected with finalizedBy cycle in the graph"() {
+        Task a = createTask("a")
+        Task b = createTask("b")
+        relationships(a, finalizedBy: [b])
+        relationships(b, finalizedBy: [b])
+
+        when:
+        addToGraphAndPopulate([a])
+
+        then:
+        CircularReferenceException e = thrown()
+        e.message == toPlatformLineSeparators("""Circular dependency between the following tasks:
+:b
+\\--- :b (*)
+
+(*) - details omitted (listed previously)
+""")
+    }
+
     def "stops returning tasks on task execution failure"() {
         def failures = []
         RuntimeException exception = new RuntimeException("failure")
@@ -853,7 +877,7 @@ class DefaultExecutionPlanTest extends AbstractExecutionPlanSpec {
 
     private Node node(Node... dependencies) {
         def action = Stub(WorkNodeAction)
-        _ * action.project >> null
+        _ * action.owningProject >> null
         def node = new ActionNode(action)
         dependencies.each {
             node.addDependencySuccessor(it)

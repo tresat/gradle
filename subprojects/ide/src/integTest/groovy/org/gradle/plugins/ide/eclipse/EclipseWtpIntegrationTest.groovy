@@ -15,14 +15,14 @@
  */
 package org.gradle.plugins.ide.eclipse
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.junit.Test
 import spock.lang.Issue
 
 class EclipseWtpIntegrationTest extends AbstractEclipseIntegrationTest {
     @Test
     @Issue("GRADLE-1415")
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void canUseSelfResolvingFiles() {
         def buildFile = """
 apply plugin: "war"
@@ -46,7 +46,7 @@ dependencies {
 
     @Test
     @Issue("GRADLE-2526")
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void overwritesDependentModules() {
         generateEclipseFilesForWebProject()
         def projectModules = parseComponentFile(project: "web")
@@ -66,7 +66,7 @@ dependencies {
     }
 
     @Test
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     void respectsDependencySubstitutionRules() {
         //given
         mavenRepo.module("gradle", "foo").publish()
@@ -94,8 +94,8 @@ dependencies {
 
            configurations.all {
                resolutionStrategy.dependencySubstitution {
-                   substitute module("gradle:foo") with module("gradle:bar:1.0")
-                   substitute project(":sub") with module("gradle:baz:1.0")
+                   substitute module("gradle:foo") using module("gradle:bar:1.0")
+                   substitute project(":sub") using module("gradle:baz:1.0")
                }
            }
         """
@@ -182,7 +182,7 @@ apply plugin: "eclipse-wtp"
 apply plugin: "groovy"
         """
 
-        executer.usingSettingsFile(settingsFile).withTasks("eclipse").run()
+        executer.withTasks("eclipse").run()
     }
 
 	private Set getHandleFilenames(projectModules) {

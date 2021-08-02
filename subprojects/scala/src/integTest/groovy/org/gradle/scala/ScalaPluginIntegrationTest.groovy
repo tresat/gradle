@@ -15,9 +15,10 @@
  */
 package org.gradle.scala
 
+import org.gradle.api.plugins.scala.ScalaBasePlugin
 import org.gradle.integtests.fixtures.AbstractIntegrationSpec
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
-import org.gradle.language.scala.internal.toolchain.DefaultScalaToolProvider
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
+import org.gradle.integtests.fixtures.executer.GradleContextualExecuter
 import spock.lang.Issue
 
 import static org.hamcrest.CoreMatchers.containsString
@@ -46,9 +47,7 @@ task someTask
                 tasks.withType(AbstractScalaCompile) {
                     options.fork = true
                 }
-                repositories {
-                    ${jcenterRepository()}
-                }
+                ${mavenCentralRepository()}
                 plugins.withId("scala") {
                     dependencies {
                         implementation("org.scala-lang:scala-library:2.12.6")
@@ -87,9 +86,7 @@ task someTask
         """
         buildFile << """
             allprojects {
-                repositories {
-                    ${jcenterRepository()}
-                }
+                ${mavenCentralRepository()}
             }
             project(":java") {
                 apply plugin: 'java'
@@ -121,9 +118,7 @@ task someTask
         """
         buildFile << """
             allprojects {
-                repositories {
-                    ${jcenterRepository()}
-                }
+                ${mavenCentralRepository()}
             }
             project(":other") {
                 apply plugin: 'base'
@@ -163,9 +158,7 @@ task someTask
         """
         buildFile << """
             allprojects {
-                repositories {
-                    ${jcenterRepository()}
-                }
+                ${mavenCentralRepository()}
                 apply plugin: 'scala'
 
                 dependencies {
@@ -192,33 +185,6 @@ task someTask
         file("ear/build/tmp/ear/application.xml").assertContents(not(containsString("implementationScala.mapping")))
     }
 
-    @Issue("https://github.com/gradle/gradle/issues/6849")
-    @ToBeFixedForInstantExecution
-    def "can publish test-only projects"() {
-        using m2
-        settingsFile << """
-            rootProject.name = "scala"
-        """
-        buildFile << """
-            apply plugin: 'scala'
-            apply plugin: 'maven'
-
-            repositories {
-                ${jcenterRepository()}
-            }
-            dependencies {
-                implementation("org.scala-lang:scala-library:2.12.6")
-            }
-        """
-        file("src/test/scala/Foo.scala") << """
-            class Foo
-        """
-        expect:
-        executer.expectDeprecationWarning()
-        succeeds("install")
-    }
-
-    @ToBeFixedForInstantExecution
     def "forcing an incompatible version of Scala fails with a clear error message"() {
         settingsFile << """
             rootProject.name = "scala"
@@ -226,9 +192,7 @@ task someTask
         buildFile << """
             apply plugin: 'scala'
 
-            repositories {
-                ${jcenterRepository()}
-            }
+            ${mavenCentralRepository()}
             dependencies {
                 implementation("org.scala-lang:scala-library")
             }
@@ -243,11 +207,20 @@ task someTask
         fails("assemble")
 
         then:
-        failureHasCause("The version of 'scala-library' was changed while using the default Zinc version." +
-            " Version 2.10.7 is not compatible with org.scala-sbt:zinc_2.12:" + DefaultScalaToolProvider.DEFAULT_ZINC_VERSION)
+        def expectedMessage = "The version of 'scala-library' was changed while using the default Zinc version." +
+            " Version 2.10.7 is not compatible with org.scala-sbt:zinc_2.12:" + ScalaBasePlugin.DEFAULT_ZINC_VERSION
+        if (GradleContextualExecuter.isConfigCache()) {
+            // Nested in the CC problems report
+            failure.assertHasFailures(2)
+            failure.assertHasFailure("Configuration cache problems found in this build.") { fail ->
+                fail.assertHasCause(expectedMessage)
+            }
+        } else {
+            failureHasCause(expectedMessage)
+        }
     }
 
-    @ToBeFixedForInstantExecution(because = ":dependencyInsight")
+    @ToBeFixedForConfigurationCache(because = ":dependencyInsight")
     def "trying to use an old version of Zinc switches to Gradle-supported version"() {
         settingsFile << """
             rootProject.name = "scala"
@@ -255,9 +228,8 @@ task someTask
         buildFile << """
             apply plugin: 'scala'
 
-            repositories {
-                ${jcenterRepository()}
-            }
+            ${mavenCentralRepository()}
+
             dependencies {
                 zinc("com.typesafe.zinc:zinc:0.3.6")
                 implementation("org.scala-lang:scala-library:2.12.6")

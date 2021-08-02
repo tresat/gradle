@@ -23,13 +23,13 @@ class DispatchingFailureIntegrationSpec extends DaemonIntegrationSpec {
     def "failing build does not make the daemon send corrupted message"() {
         expect:
         //This kind of failure more likely reproduces the problem
-        def settingsFile = file("settings.gradle") << "// empty"
+        file("settings.gradle") << "// empty"
         def projectdir = file("project dir").createDir()
 
         //requesting x failing builds creates enough stress to expose issues with unsynchronized dispatch
         50.times {
-            executer.usingSettingsFile(settingsFile)
-                    .usingProjectDirectory(projectdir)
+            executer.usingProjectDirectory(projectdir)
+                    .withTasks("tasks")
                     .runWithFailure()
         }
     }

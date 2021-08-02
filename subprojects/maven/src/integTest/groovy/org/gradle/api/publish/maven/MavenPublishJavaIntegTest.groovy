@@ -17,7 +17,7 @@
 package org.gradle.api.publish.maven
 
 import org.gradle.api.publish.maven.internal.publication.DefaultMavenPublication
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.test.fixtures.maven.MavenJavaModule
 
 class MavenPublishJavaIntegTest extends AbstractMavenPublishJavaIntegTest {
@@ -34,7 +34,7 @@ class MavenPublishJavaIntegTest extends AbstractMavenPublishJavaIntegTest {
         given:
         createBuildScripts("""
 
-            ${jcenterRepository()}
+            ${mavenCentralRepository()}
 
             dependencies {
                 implementation "commons-collections:commons-collections:1.+"
@@ -78,7 +78,7 @@ class MavenPublishJavaIntegTest extends AbstractMavenPublishJavaIntegTest {
         }
     }
 
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "a component's variant can be modified before publishing"() {
         given:
         createBuildScripts """

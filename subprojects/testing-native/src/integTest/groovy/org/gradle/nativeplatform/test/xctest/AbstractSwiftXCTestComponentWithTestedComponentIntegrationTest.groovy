@@ -16,7 +16,7 @@
 
 package org.gradle.nativeplatform.test.xctest
 
-import org.gradle.integtests.fixtures.ToBeFixedForInstantExecution
+import org.gradle.integtests.fixtures.ToBeFixedForConfigurationCache
 import org.gradle.internal.os.OperatingSystem
 import org.gradle.language.swift.SwiftVersion
 import org.gradle.nativeplatform.fixtures.RequiresInstalledToolChain
@@ -32,6 +32,7 @@ import static org.junit.Assume.assumeTrue
 abstract class AbstractSwiftXCTestComponentWithTestedComponentIntegrationTest extends AbstractSwiftXCTestComponentIntegrationTest implements XCTestExecutionResult {
     // TODO: This test can be generalized so it's not opinionated on Swift 4.x but could also work on Swift 5.x
     @RequiresInstalledToolChain(ToolChainRequirement.SWIFTC_4)
+    @ToBeFixedForConfigurationCache
     def "take swift source compatibility from tested component"() {
         given:
         makeSingleProject()
@@ -61,7 +62,7 @@ abstract class AbstractSwiftXCTestComponentWithTestedComponentIntegrationTest ex
     }
 
     @Unroll
-    @ToBeFixedForInstantExecution
+    @ToBeFixedForConfigurationCache
     def "honors Swift source compatibility difference on both tested component (#componentSourceCompatibility) and XCTest component (#xctestSourceCompatibility)"() {
         given:
         assumeSwiftCompilerSupportsLanguageVersion(componentSourceCompatibility)

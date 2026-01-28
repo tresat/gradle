@@ -57,6 +57,12 @@ The role of the dependency resolution engine is to find a suitable _variant_ of 
 
 This is where attributes come into play: their role is to perform the selection of the right _variant_ of a component.
 
+[IMPORTANT]
+====
+For a variant to be selectable via variant-aware dependency resolution, it *must* have attributes defined.
+Variants without attributes cannot participate in variant selection and are only accessible through explicit configuration selection or legacy resolution mechanisms.
+====
+
 [NOTE]
 .Variants vs configurations
 ====
@@ -72,9 +78,11 @@ However, sometimes the term _configuration_ may leak into the DSL for historical
 Gradle offers a report task called `outgoingVariants` that displays the variants of a project, with their capabilities, attributes and artifacts.
 It is conceptually similar to the `dependencyInsight` <<viewing_debugging_dependencies.adoc#sec:identifying_reason_dependency_selection,reporting task>>.
 
-By default, `outgoingVariants` prints information about all variants.
+By default, `outgoingVariants` prints information about variants with attributes that can be selected during variant-aware dependency resolution.
 It offers the optional parameter `--variant <variantName>` to select a single variant to display.
-It also accepts the `--all` flag to include information about legacy and deprecated configurations.
+It also accepts the `--all` flag to include information about legacy and deprecated configurations, as well as variants without attributes.
+
+NOTE: Variants without attributes are marked with `(n)` in the report and cannot be selected during variant-aware dependency resolution.
 
 Here is the output of the `outgoingVariants` task on a freshly generated `java-library` project:
 

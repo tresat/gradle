@@ -302,6 +302,7 @@ Here are the available outgoing variants: apiElements, archives, default, runtim
         and:
         doesNotHaveLegacyVariantsLegend()
         doesNotHaveSecondaryVariantsLegend()
+        doesNotHaveNonSelectableVariantsLegend()
 
     }
 
@@ -348,7 +349,7 @@ Secondary variants (*)
           - build${File.separator}classes${File.separator}java${File.separator}main (artifactType = java-classes-directory)
 
 --------------------------------------------------
-Variant archives (l)
+Variant archives (l) (n)
 --------------------------------------------------
 Description = Configuration for archive artifacts.
 
@@ -356,7 +357,7 @@ Artifacts
     - build${File.separator}libs${File.separator}myLib-1.0.jar (artifactType = jar)
 
 --------------------------------------------------
-Variant default (l)
+Variant default (l) (n)
 --------------------------------------------------
 Description = Configuration for default artifacts.
 
@@ -404,6 +405,7 @@ Secondary variants (*)
         and:
         hasLegacyVariantsLegend()
         hasSecondaryVariantsLegend()
+        hasNonSelectableVariantsLegend()
     }
 
     @ToBeFixedForConfigurationCache(because = ":outgoingVariants")
@@ -497,6 +499,30 @@ Secondary variants (*)
         hasSecondaryVariantsLegend()
     }
 
+    @ToBeFixedForConfigurationCache(because = ":outgoingVariants")
+    def "does not show variants without attributes by default"() {
+        buildFile << """
+            plugins { id 'java-library' }
+            group = 'org'
+            version = '1.0'
+        """
+
+        when:
+        run ':outgoingVariants'
+
+        then:
+        // Should show apiElements and runtimeElements (both have attributes)
+        outputContains("Variant apiElements")
+        outputContains("Variant runtimeElements")
+        // Should NOT show archives and default (neither have attributes)
+        outputDoesNotContain("Variant archives")
+        outputDoesNotContain("Variant default")
+        and:
+        doesNotHaveLegacyVariantsLegend()
+        hasSecondaryVariantsLegend()
+        doesNotHaveNonSelectableVariantsLegend()
+    }
+
     private void hasSecondaryVariantsLegend() {
         outputContains("(*) Secondary variants are variants created via the Configuration#getOutgoing(): ConfigurationPublications API which also participate in selection, in addition to the configuration itself.")
     }
@@ -511,5 +537,13 @@ Secondary variants (*)
 
     private void doesNotHaveLegacyVariantsLegend() {
         outputDoesNotContain("(l) Legacy or deprecated configuration. Those are variants created for backwards compatibility which are both resolvable and consumable.")
+    }
+
+    private void hasNonSelectableVariantsLegend() {
+        outputContains("(n) Variant not selectable via attributes. Variants without attributes cannot be used for variant-aware dependency resolution.")
+    }
+
+    private void doesNotHaveNonSelectableVariantsLegend() {
+        outputDoesNotContain("(n) Variant not selectable via attributes. Variants without attributes cannot be used for variant-aware dependency resolution.")
     }
 }

@@ -104,9 +104,14 @@ public class OutgoingVariantsReportTask extends DefaultTask {
         cnf.preventFromFurtherMutation();
         Formatter tree = new Formatter(output);
         String name = cnf.getName();
+        boolean hasAttributes = !cnf.getAttributes().isEmpty();
         if (cnf.isCanBeResolved()) {
             name += " (l)";
             legend.hasLegacyConfigurations = true;
+        }
+        if (!hasAttributes) {
+            name += " (n)";
+            legend.hasNonSelectableVariants = true;
         }
         header("Variant " + name, output);
         String description = cnf.getDescription();
@@ -219,7 +224,8 @@ public class OutgoingVariantsReportTask extends DefaultTask {
     private List<Configuration> filterConfigurations() {
         Stream<Configuration> configurations = getAllConsumableConfigurations();
         if (!showAll.get() && !variantSpec.isPresent()) {
-            configurations = configurations.filter(files -> !files.isCanBeResolved());
+            // Filter out legacy configurations (resolvable) and configurations without attributes
+            configurations = configurations.filter(cnf -> !cnf.isCanBeResolved() && !cnf.getAttributes().isEmpty());
         }
         if (variantSpec.isPresent()) {
             String variantName = variantSpec.get();
@@ -238,14 +244,18 @@ public class OutgoingVariantsReportTask extends DefaultTask {
     private static class Legend {
         private boolean hasPublications;
         private boolean hasLegacyConfigurations;
+        private boolean hasNonSelectableVariants;
 
         void print(StyledTextOutput output) {
             StyledTextOutput info = output.style(StyledTextOutput.Style.Info);
-            if (hasLegacyConfigurations || hasPublications) {
+            if (hasLegacyConfigurations || hasPublications || hasNonSelectableVariants) {
                 info.println();
             }
             if (hasLegacyConfigurations) {
                 info.println("(l) Legacy or deprecated configuration. Those are variants created for backwards compatibility which are both resolvable and consumable.");
+            }
+            if (hasNonSelectableVariants) {
+                info.println("(n) Variant not selectable via attributes. Variants without attributes cannot be used for variant-aware dependency resolution.");
             }
             if (hasPublications) {
                 info.text("(*) Secondary variants are variants created via the ")
